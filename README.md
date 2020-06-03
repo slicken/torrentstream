@@ -13,5 +13,5 @@ go build -o app<br>
 ./run<br>
 <br>
 ---docker---<br>
-docker build .<br>
-docker run -p 8080:8080 -p 5000:5000 <image><br>
+docker build . -t ts<br>
+docker run -p 8080:8080 -p 5000:5000 ts<br>
