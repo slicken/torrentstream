@@ -15,3 +15,5 @@ go build -o app<br>
 ---docker---<br>
 docker build . -t ts<br>
 docker run -p 8080:8080 -p 5000:5000 ts<br>
+
+![Alt text](ts_screen.png?raw=true "torrentstream")
