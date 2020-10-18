@@ -93,7 +93,7 @@ func main() {
 	log.Printf("torrent sites handler initalized for %s, %s\n", tpb.Name, kat.Name)
 
 	// subtitle functions					--- not done!
-	// subDB.s = subDBSearch
+	// subDB.s = subDBSearch                --- not used
 	subDB.d = subDBDownload
 
 	// http handlers

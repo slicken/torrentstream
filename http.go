@@ -34,7 +34,6 @@ var (
 	{{end}}
 	
 	--- HISTORY ---
-	{{le .History}}
 	{{range .History}}
 	{{.Time}}	{{.File}}
 	{{end}}

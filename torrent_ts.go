@@ -27,7 +27,7 @@ func NewTs() (*Ts, error) {
 
 	ts := &Ts{
 		client: cli,
-		m:      map[string]*T{},
+		m:      make(map[string]*T),
 		// RWMutex: sync.RWMutex{},
 	}
 	// maintain and flush un-used content

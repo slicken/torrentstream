@@ -60,13 +60,7 @@ func subHash(path string, kb int64) (string, error) {
 	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 
-// srt2vtt quick dirty way to convert srt2vtt
-func srt2vtt(text string) string {
-	srt := regexp.MustCompile(`,`)
-	return "WEBVTT\n\n" + srt.ReplaceAllLiteralString(text, `.`)
-}
-
-// subDBDownload downloads and returns the path of subtitle
+// convert and write vtt
 func subFileConvert(f string) (string, error) {
 	srt, err := ioutil.ReadFile(f)
 	if err != nil {
@@ -85,4 +79,10 @@ func subFileConvert(f string) (string, error) {
 
 	log.Println("subtitle @", path)
 	return file, nil
+}
+
+// srt2vtt quick dirty way to convert srt2vtt
+func srt2vtt(text string) string {
+	srt := regexp.MustCompile(`,`)
+	return "WEBVTT\n\n" + srt.ReplaceAllLiteralString(text, `.`)
 }

@@ -2,11 +2,13 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -15,7 +17,7 @@ const fileseparator = "_"
 var subDB = &SubSite{
 	Name:      "SubDB",
 	URL:       "api.thesubdb.com", // "sandbox.thesubdb.com"
-	UserAgent: "SubDB/1.0 [torrentstream.io] 0.3 beta",
+	UserAgent: "SubDB/1.0 [torrentstream] beta",
 }
 
 // subDBDownload downloads and returns the path of subtitle
@@ -57,6 +59,49 @@ func subDBDownload(subtitle Subtitle) (string, error) {
 	return file, nil
 }
 
+func subDBSearch(hash, lang string) ([]Subtitle, error) {
+	params := url.Values{}
+	params.Set("action", "search")
+	params.Set("hash", hash)
+
+	url := url.URL{
+		Scheme:   "http",
+		Host:     subDB.URL,
+		RawQuery: params.Encode(),
+	}
+
+	req, err := http.NewRequest("GET", url.String(), nil)
+	if err != nil {
+		return nil, nil
+	}
+
+	req.Header.Set("User-Agent", subDB.UserAgent)
+	resp, err := subClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("StatusCode %d", resp.StatusCode)
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var subs []Subtitle
+	if strings.Contains(string(body), lang) {
+		params.Set("action", "download")
+		params.Set("language", lang)
+		url.RawQuery = params.Encode()
+		subs = append(subs, Subtitle{Hash: hash, Lang: lang, Format: "srt", URL: url.String()})
+	}
+
+	return subs, nil
+}
+
 func makeURL(hash, lang string) string {
 	params := url.Values{}
 	params.Set("action", "download")
@@ -74,7 +119,7 @@ func makeURL(hash, lang string) string {
 func subDBdl(hash string, lang []string) []Subtitle {
 	var subs []Subtitle
 
-	var m = &sync.Mutex{}
+	var m sync.Mutex
 	var wg sync.WaitGroup
 	for _, l := range lang {
 

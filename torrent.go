@@ -138,60 +138,6 @@ func (t *T) activityCtx(r *http.Request) {
 	}()
 }
 
-// FindSubInTorrent ..
-// func (t *T) FindSubInTorrent() []Subtitle {
-// 	tf := t.Torrent
-// 	subs := []Subtitle{}
-
-// 	var wg = &sync.WaitGroup{}
-// 	for _, f := range t.Files() {
-// 		ext := filepath.Ext(f.Path())
-
-// 		// if file is a .vtt
-// 		if ext == ".vtt" {
-
-// 			wg.Add(1)
-// 			go func(t *torrent.File) {
-// 				defer wg.Done()
-// 				log.Println("torrent contains subtitle", f.Path(), "downloading..")
-
-// 				t.Download()
-// 				sub := Subtitle{
-// 					Format: "vtt",
-// 					Path:   filepath.Join(conf.FileDir, f.Path()),
-// 					Lang:   "Unknown",
-// 				}
-// 				subs = append(subs, sub)
-// 			}(f)
-// 		}
-
-// 		if ext == ".srt" {
-
-// 			wg.Add(1)
-// 			go func(t *torrent.File) {
-// 				defer wg.Done()
-// 				log.Println("torrent contains subtitle", f.Path(), "downloading..")
-
-// 				t.Download()
-// 				file := filepath.Join(conf.FileDir, f.Path())
-// 				path, err := subFileConvert(file)
-// 				if err != nil {
-// 					return
-// 				}
-// 				sub := Subtitle{
-// 					Format: "vtt",
-// 					Path:   path,
-// 					Lang:   "Unknown",
-// 				}
-// 				subs = append(subs, sub)
-// 			}(f)
-// 		}
-// 	}
-
-// 	wg.Wait()
-// 	return subs
-// }
-
 // AddSubtitles ..
 func (t *T) AddSubtitles(lang []string) error {
 	// read file hash
@@ -211,3 +157,44 @@ func (t *T) AddSubtitles(lang []string) error {
 	t.Subs = subs
 	return nil
 }
+
+// // FindSubInTorrent                   					-- not used
+// func (t *T) FindSubInTorrent() []Subtitle {
+// 	var subs []Subtitle
+
+// 	var wg sync.WaitGroup
+// 	for _, f := range t.Torrent.Files() {
+// 		ext := filepath.Ext(f.Path())
+
+// 		// look only for .vtt and .srt files
+// 		if ext == ".vtt" || ext == ".srt" {
+
+// 			wg.Add(1)
+// 			go func(t *torrent.File) {
+// 				defer wg.Done()
+
+// 				log.Println("torrent contains subtitle", f.Path(), "downloading..")
+
+// 				t.Download()
+
+// 				file := filepath.Join(conf.FileDir, f.Path())
+// 				if ext == ".srt" {
+// 					var err error
+// 					if file, err = subFileConvert(file); err != nil {
+// 						return
+// 					}
+// 				}
+
+// 				sub := Subtitle{
+// 					Format: "vtt",
+// 					Path:   file,
+// 					Lang:   "Unknown",
+// 				}
+// 				subs = append(subs, sub)
+// 			}(f)
+// 		}
+// 	}
+
+// 	wg.Wait()
+// 	return subs
+// }
