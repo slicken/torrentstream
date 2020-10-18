@@ -37,8 +37,10 @@ type Omdb struct {
 
 // omdbGet ..
 func omdbGet(title, year string) (*Omdb, error) {
+	var omdb = new(Omdb)
+
 	if omdbKey == "" {
-		return nil, errors.New("OMDB key missing")
+		return omdb, errors.New("OMDB key missing")
 	}
 
 	params := url.Values{}
@@ -68,7 +70,6 @@ func omdbGet(title, year string) (*Omdb, error) {
 		return nil, err
 	}
 
-	var omdb = new(Omdb)
 	if err := json.Unmarshal(body, &omdb); err != nil {
 		return nil, err
 	}
