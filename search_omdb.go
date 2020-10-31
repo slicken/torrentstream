@@ -61,17 +61,17 @@ func omdbGet(title, year string) (*Omdb, error) {
 
 	resp, err := client.Get(url.String())
 	if err != nil {
-		return nil, err
+		return omdb, err
 	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return omdb, err
 	}
 
 	if err := json.Unmarshal(body, &omdb); err != nil {
-		return nil, err
+		return omdb, err
 	}
 
 	return omdb, nil
