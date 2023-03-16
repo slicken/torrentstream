@@ -73,7 +73,7 @@
     <p class="vjs-no-js">your browser does not support the video tag.</p>
 
     {{range .Subs}}
-        <track src='/blob/{{.Path}}' kind="captions" label='{{.Lang}}'>
+        <track src='{{.Path}}' kind="captions" label='{{.Lang}}'>
     {{end}}
 
 </video-js>

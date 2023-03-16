@@ -14,8 +14,8 @@ func TestSub(t *testing.T) {
 	subhash := "8164f73e9671915560bc9757d8a018ea"
 
 	// init search func
-	subDB.s = subDBSearch
-	subDB.d = subDBDownload
+	subDB.search = subDBSearch
+	subDB.download = subDBDownload
 
 	// le = append(le, "en")
 	// le = append(le, "se")

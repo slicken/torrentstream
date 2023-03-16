@@ -59,8 +59,8 @@ func (ts *Ts) Load(r *http.Request, m metainfo.Magnet) (*T, error) {
 	}
 
 	// add subtitles if possible - run subfunctions
-	if err = t.AddSubtitles([]string{"en", "es", "se"}); err != nil {
-		log.Printf("could not add subtitles: %v\n", err)
+	if err = t.AddSubtitles([]string{"en", "se"}); err != nil {
+		log.Println(err)
 	}
 
 	// add to history

@@ -5,14 +5,9 @@ import (
 	"errors"
 	"io/ioutil"
 	"net/url"
-	"os"
 )
 
 const omdbURL = "www.omdbapi.com"
-
-var (
-	omdbKey = os.Getenv("OMDB")
-)
 
 // Omdb (imdb) movie struct
 type Omdb struct {

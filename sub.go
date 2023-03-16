@@ -34,6 +34,6 @@ type SubSite struct {
 	URL       string
 	UserAgent string
 	Enabled   bool
-	s         func(string, string) ([]Subtitle, error)
-	d         func(Subtitle) (string, error)
+	search    func(string, string) ([]Subtitle, error)
+	download  func(Subtitle) (string, error)
 }

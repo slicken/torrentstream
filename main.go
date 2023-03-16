@@ -16,9 +16,10 @@ import (
 
 // globals
 var (
-	conf   *Config
-	search *TorrentSites
-	ts     *Ts
+	conf    *Config
+	search  *TorrentSites
+	ts      *Ts
+	omdbKey = os.Getenv("OMDB_KEY")
 )
 
 // Config global
@@ -37,10 +38,12 @@ type Config struct {
 
 func main() {
 	// configuration flags
+	var tmpIdle string
 	conf = new(Config)
 	flag.StringVar(&conf.Http, "http", ":8080", "http server address")
-	flag.StringVar(&conf.FileDir, "dir", "torrents", "torrents directory for temp downloads")
-	flag.DurationVar(&conf.Idle, "idle", 60, "maximum torrent idle in seconds")
+	// flag.StringVar(&conf.FileDir, "dir", "tmp", "torrents directory for temp downloads")
+	conf.FileDir = "tmp"
+	flag.StringVar(&tmpIdle, "idle", "1800s", "maximum torrent idle in seconds")
 	flag.IntVar(&conf.Seeders, "seeders", 5, "minimum seeders for torrent to show as a result")
 	flag.IntVar(&conf.Streams, "maximum", 50, "maximum active torrents")
 	// less important
@@ -56,6 +59,12 @@ func main() {
 		log.Println("WARNING enviroment key OMDB is not set. Will not plot movie info and posters")
 	}
 
+	var err error
+	conf.Idle, err = time.ParseDuration(tmpIdle)
+	if err != nil {
+		log.Fatalln("could not parse Idle time:", err)
+	}
+
 	// log to file with '--log' arg
 	if strings.Contains(fmt.Sprint(os.Args), "--log") {
 		logName := time.Now().Format("01021504") + ".log"
@@ -68,13 +77,12 @@ func main() {
 	}
 
 	// check if download dir is set
-	if conf.FileDir != "" && !filepath.IsAbs(conf.FileDir) {
-		conf.FileDir, _ = filepath.Abs(conf.FileDir)
-		log.Printf("torrent directory is set %s\n", conf.FileDir)
-	}
+	// if conf.FileDir != "" && !filepath.IsAbs(conf.FileDir) {
+	// 	conf.FileDir, _ = filepath.Abs(conf.FileDir)
+	log.Printf("torrent directory is set %s\n", conf.FileDir)
+	// }
 
 	// torrent and app main program
-	var err error
 	ts, err = NewTs()
 	if err != nil {
 		log.Fatal("could not initalize torrent client:", err)
@@ -92,14 +100,13 @@ func main() {
 	go search.Handler(conf.Sites)
 	log.Printf("torrent sites handler initalized for %s, %s\n", tpb.Name, kat.Name)
 
-	// subtitle functions					--- not done!
-	// subDB.s = subDBSearch                --- not used
-	subDB.d = subDBDownload
+	subDB.search = subDBSearch
+	subDB.download = subDBDownload
 
 	// http handlers
-	http.Handle("/www/", http.StripPrefix("/www", http.FileServer(http.Dir("www"))))
-	http.Handle("/blob/", http.StripPrefix("/blob", http.FileServer(http.Dir(conf.FileDir))))
 	http.Handle("/favicon.ico", http.NotFoundHandler())
+	http.Handle("/www/", http.StripPrefix("/www/", http.FileServer(http.Dir("www"))))
+	http.Handle("/tmp/", http.StripPrefix("/tmp/", http.FileServer(http.Dir(conf.FileDir))))
 	http.HandleFunc("/", index)
 	http.HandleFunc("/play", play)
 	http.HandleFunc("/stream", stream)

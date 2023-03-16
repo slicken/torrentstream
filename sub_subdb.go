@@ -12,8 +12,6 @@ import (
 	"sync"
 )
 
-const fileseparator = "_"
-
 var subDB = &SubSite{
 	Name:      "SubDB",
 	URL:       "api.thesubdb.com", // "sandbox.thesubdb.com"
@@ -24,7 +22,7 @@ var subDB = &SubSite{
 func subDBDownload(subtitle Subtitle) (string, error) {
 	req, err := http.NewRequest("GET", subtitle.URL, nil)
 	if err != nil {
-		return "", nil
+		return "", err
 	}
 
 	req.Header.Set("User-Agent", subDB.UserAgent)
@@ -40,8 +38,7 @@ func subDBDownload(subtitle Subtitle) (string, error) {
 	}
 
 	// check if we got any data in responose
-	bodystr := string(body)
-	if len(bodystr) < 9 {
+	if len(string(body)) < 9 {
 		return "", errors.New("not found")
 	}
 
@@ -49,7 +46,7 @@ func subDBDownload(subtitle Subtitle) (string, error) {
 	vtt := srt2vtt(string(body))
 
 	// write subfile
-	file := subtitle.Hash + fileseparator + subtitle.Lang + ".vtt"
+	file := subtitle.Hash + "_" + subtitle.Lang + ".vtt"
 	path := filepath.Join(conf.FileDir, file)
 	if err := ioutil.WriteFile(path, []byte(vtt), 0666); err != nil {
 		return "", err
@@ -135,7 +132,7 @@ func subDBdl(hash string, lang []string) []Subtitle {
 			}
 
 			var err error
-			if sub.Path, err = subDB.d(sub); err != nil {
+			if sub.Path, err = subDB.download(sub); err != nil {
 				return
 			}
 

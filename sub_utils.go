@@ -3,11 +3,10 @@ package main
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
-	"path/filepath"
 	"regexp"
 )
 
@@ -18,15 +17,15 @@ func readHash(reader io.ReadSeeker, kb int64) (string, error) {
 
 	_, err := io.CopyN(hash, reader, readSize)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("io.CopyN error: %s", err)
 	}
-	_, err = reader.Seek(-readSize, os.SEEK_END)
+	_, err = reader.Seek(-readSize, io.SeekEnd)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("read.Seek error: %s", err)
 	}
 	_, err = io.CopyN(hash, reader, readSize)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("io.CopyN2 error: %s", err)
 	}
 
 	return hex.EncodeToString(hash.Sum(nil)), nil
@@ -44,17 +43,15 @@ func subHash(path string, kb int64) (string, error) {
 
 	_, err = io.CopyN(hash, f, readSize)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("io.CopyN error: %s", err)
 	}
-
-	_, err = f.Seek(-readSize, os.SEEK_END)
+	_, err = f.Seek(-readSize, io.SeekEnd)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("read.Seek error: %s", err)
 	}
-
 	_, err = io.CopyN(hash, f, readSize)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("io.CopyN2 error: %s", err)
 	}
 
 	return hex.EncodeToString(hash.Sum(nil)), nil
@@ -66,18 +63,14 @@ func subFileConvert(f string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-
 	// convert to vtt
 	vtt := srt2vtt(string(srt))
-
 	// write subfile
-	file := f + fileseparator + ".vtt"
-	path := filepath.Join(conf.FileDir, file)
-	if err := ioutil.WriteFile(path, []byte(vtt), 0666); err != nil {
+	file := f + ".vtt"
+	if err := ioutil.WriteFile(file, []byte(vtt), 0666); err != nil {
 		return "", err
 	}
 
-	log.Println("subtitle @", path)
 	return file, nil
 }
 
