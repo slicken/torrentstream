@@ -11,7 +11,7 @@ import (
 )
 
 var kat = &TorrentSite{
-	Name:      "KAT",
+	Name:      "Kickass torrents",
 	Scheme:    "https",
 	URL:       "kickass2.cc",
 	UserAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/53.0.2785.143 Safari/537.36",
@@ -40,7 +40,7 @@ func katSearch(title, category string, ch chan *Torrent) error {
 	if err != nil {
 		return err
 	}
-	req.Header.Set("User-Agent", tpb.UserAgent)
+	req.Header.Set("User-Agent", kat.UserAgent)
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
