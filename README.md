@@ -1,11 +1,11 @@
 # torrentstream.io
 
-This streaming website is for private use and friends only.<br>
+This streaming website is for private use only.<br>
 <br>
 serveing any movie content, shared by others on the torrent networks as a stream.<br>
-making meta-search on tpb,kat, plots results (with poster, imdb info and scoring) to stream directly in browser.<br>
+making meta-search on The Piratebay, Kickass torrents and plots results (with poster, info and score) to stream directly in browser.<br>
 adds sub if found in torrent, if not then fetching it from subdb and inserts it.<br>
-This streaming website is for private use and friends only.<br>
+This streaming website is for private use only.<br>
 
 ### build ###
 ```
@@ -22,25 +22,25 @@ docker run -p 8080:8080 -p 5000:5000 ts
 slicken@slk:~$ ./app --help
 Usage of ./app:
   -dir string
-    	torrents directory for temp downloads (default "torrents")
+    	directory for temp downloads (default "tmp")
   -dl int
-    	max bytes per second for download (default -1)
+    	max bytes per second (download) (default -1)
   -http string
     	http server address (default ":8080")
   -idle duration
-    	maximum torrent idle in seconds (default 900s)
+    	idle time before closing (default 15m0s)
   -maximum int
     	maximum active torrents (default 50)
-  -node int
-    	maximum node connections per torrent (default 100)
+  -nodes int
+    	maximum connections per torrent (default 100)
   -seed
-    	seed after download is complete
+    	seed after download
   -seeders int
-    	minimum seeders for torrent to show as a result (default 5)
+    	minimum seeders (default 1)
   -site int
-    	site handler check in minutes minutes (default 20)
+    	check torrent sites (minutes) (default 100)
   -ul int
-    	max bytes per second for upload (default -1)
+    	max bytes per second (upload) (default -1)
 ```
 
 ![Alt text](ts_screen.png?raw=true "torrentstream")

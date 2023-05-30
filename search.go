@@ -29,7 +29,7 @@ type TorrentSite struct {
 	URL       string
 	UserAgent string
 	Enabled   bool
-	f         func(string, string, chan *Torrent) error
+	find      func(string, string, chan *Torrent) error
 }
 
 // TorrentSites contains torrent search sites
@@ -114,7 +114,7 @@ func (db *TorrentSites) SearchTorrent(title, category string) []*Torrent {
 
 			var c = make(chan *Torrent)
 			go func() {
-				err := site.f(title, category, c)
+				err := site.find(title, category, c)
 				if err != nil {
 					log.Printf("search error '%s' on %s: %v\n", title, site.Name, err)
 				}
@@ -134,9 +134,10 @@ func (db *TorrentSites) SearchTorrent(title, category string) []*Torrent {
 					}
 					title, year := parseTitle(t.Title)
 					// check if poster alredy exist from previous dl
-					db.RLock()
+
+					// db.RLock() // ----- CHECKING IF IT WORKS WITHOUT -----
 					list := infos
-					db.RUnlock()
+					// db.RUnlock()
 					for k, omdb := range list {
 						if k == title {
 							t.Info = omdb
@@ -146,7 +147,7 @@ func (db *TorrentSites) SearchTorrent(title, category string) []*Torrent {
 					}
 					// if info didnt exist, dl
 					omdb, _ := omdbGet(title, year)
-					// if no link to poster. clear its field to endable "no poster" img
+					// if no link to poster. clear its field to endable the 'no poster' imgage
 					if !strings.Contains(omdb.Poster, "http") {
 						omdb.Poster = ""
 					}

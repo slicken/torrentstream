@@ -18,20 +18,20 @@ const (
 	msgNoresult // 3
 )
 
+// {{range $k, $v := .Ts}}
+// {{$v.Conn}}		{{$k}}
+// {{end}}
+
 var (
 	tplIndex = template.Must(template.ParseFiles("www/index.html"))
 	tplPlay  = template.Must(template.ParseFiles("www/play.html"))
 
 	// stats page
 	tplStats = template.Must(template.New("stats").Parse(`
-	Boot {{.Time}}
-	Visits {{.Visits}}
+	Boot    {{.Time}}
+	Visits  {{.Visits}}
 	Streams {{.Streams}}
-	
-	--- ACTIVE ----
-	{{range $k, $v := .Ts}}
-		{{$v.Conn}}		{{$k}}
-	{{end}}
+	Active  {{len .Ts}}
 	
 	--- HISTORY ---
 	{{range .History}}

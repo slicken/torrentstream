@@ -51,7 +51,7 @@ func (ts *Ts) NewTorrent(r *http.Request, m metainfo.Magnet) (*T, error) {
 		return nil, err
 	}
 	// not important yet
-	t.SetMaxEstablishedConns(conf.Node)
+	t.SetMaxEstablishedConns(conf.Nodes)
 
 	select {
 	case <-t.GotInfo():

@@ -16,10 +16,10 @@ import (
 
 // globals
 var (
-	conf    *Config
-	search  *TorrentSites
-	ts      *Ts
-	omdbKey = os.Getenv("OMDB_KEY")
+	conf     *Config
+	search   *TorrentSites
+	ts       *Ts
+	OMDB_KEY = os.Getenv("OMDB_KEY")
 )
 
 // Config global
@@ -30,7 +30,7 @@ type Config struct {
 	Streams      int
 	Seeders      int
 	Sites        int
-	Node         int
+	Nodes        int
 	UploadRate   int
 	DownloadRate int
 	Seed         bool
@@ -38,31 +38,23 @@ type Config struct {
 
 func main() {
 	// configuration flags
-	var tmpIdle string
 	conf = new(Config)
 	flag.StringVar(&conf.Http, "http", ":8080", "http server address")
-	// flag.StringVar(&conf.FileDir, "dir", "tmp", "torrents directory for temp downloads")
-	conf.FileDir = "tmp"
-	flag.StringVar(&tmpIdle, "idle", "1800s", "maximum torrent idle in seconds")
-	flag.IntVar(&conf.Seeders, "seeders", 5, "minimum seeders for torrent to show as a result")
+	flag.StringVar(&conf.FileDir, "dir", "tmp", "directory for temporary files")
+	flag.DurationVar(&conf.Idle, "idle", 15*time.Minute, "idle time before closing")
+	flag.IntVar(&conf.Seeders, "seeders", 1, "minimum seeders")
 	flag.IntVar(&conf.Streams, "maximum", 50, "maximum active torrents")
 	// less important
-	flag.IntVar(&conf.Sites, "site", 20, "site handler check in minutes minutes")
-	flag.IntVar(&conf.Node, "node", 100, "maximum node connections per torrent")
-	flag.IntVar(&conf.UploadRate, "ul", -1, "max bytes per second for upload")
-	flag.IntVar(&conf.DownloadRate, "dl", -1, "max bytes per second for download")
-	flag.BoolVar(&conf.Seed, "seed", false, "seed after download is complete")
+	flag.IntVar(&conf.Sites, "site", 100, "check torrent sites (minutes)")
+	flag.IntVar(&conf.Nodes, "nodes", 100, "maximum connections per torrent")
+	flag.IntVar(&conf.UploadRate, "ul", -1, "max bytes per second (upload)")
+	flag.IntVar(&conf.DownloadRate, "dl", -1, "max bytes per second (download)")
+	flag.BoolVar(&conf.Seed, "seed", false, "seed after download")
 	flag.Parse()
 
 	// check OMDB key
-	if omdbKey == "" {
-		log.Println("WARNING enviroment key OMDB is not set. Will not plot movie info and posters")
-	}
-
-	var err error
-	conf.Idle, err = time.ParseDuration(tmpIdle)
-	if err != nil {
-		log.Fatalln("could not parse Idle time:", err)
+	if OMDB_KEY == "" {
+		log.Println("!!WARNING!! env key 'OMDB' is not set. Will not plot posters and movie info")
 	}
 
 	// log to file with '--log' arg
@@ -76,21 +68,33 @@ func main() {
 		log.Printf("successfully created logfile %q.\n", logFile.Name())
 	}
 
-	// check if download dir is set
+	// check and create temporary file directory
+	// TODO: it must work with sub directory, cant be parsed with filepath.IsAbs(..)
+
 	// if conf.FileDir != "" && !filepath.IsAbs(conf.FileDir) {
 	// 	conf.FileDir, _ = filepath.Abs(conf.FileDir)
-	log.Printf("torrent directory is set %s\n", conf.FileDir)
+	// tmpDir, err := (conf.FileDir, "")
+	// if err != nil {
+	// 	log.Fatal(err)
 	// }
+	// defer os.Remove(tmpDir.Name())
+	// log.Printf("temporary files stores in %q", conf.FileDir)
+	// this statement prints the data showing numbers
+	if _, err := os.Stat(conf.FileDir); os.IsNotExist(err) {
+		os.MkdirAll(conf.FileDir, 0755)
+	}
+	log.Printf("temporary files stores in %q", conf.FileDir)
 
-	// torrent and app main program
+	// Ts is main torrent diver program
+	var err error
 	ts, err = NewTs()
 	if err != nil {
 		log.Fatal("could not initalize torrent client:", err)
 	}
 
 	// meta-search on external torrent sites
-	tpb.f = tpbSearch
-	kat.f = katSearch
+	tpb.find = tpbSearch
+	kat.find = katSearch
 	search = &TorrentSites{
 		sites: []*TorrentSite{
 			tpb,
@@ -98,7 +102,7 @@ func main() {
 		},
 	}
 	go search.Handler(conf.Sites)
-	log.Printf("torrent sites handler initalized for %s, %s\n", tpb.Name, kat.Name)
+	log.Printf("initalized torrent sites for %s, %s\n", tpb.Name, kat.Name)
 
 	subDB.search = subDBSearch
 	subDB.download = subDBDownload
@@ -114,7 +118,7 @@ func main() {
 
 	// https server
 	go func() {
-		log.Println("http serving at", conf.Http)
+		log.Println("http server running at", conf.Http)
 		log.Fatal(http.ListenAndServe(conf.Http, nil))
 	}()
 
@@ -123,31 +127,30 @@ func main() {
 
 // HandleInterrupt ..
 func HandleInterrupt() {
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, os.Interrupt, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	closeChan := make(chan os.Signal, 1)
+	signal.Notify(closeChan, os.Interrupt, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
-	select {
-	case s := <-sig:
-		fmt.Println()
-		log.Printf("%+v recived. shutting down.\n", s)
+	s := <-closeChan
+	log.Printf("\n%+v recived. shutting down.\n", s)
 
-		ts.Lock()
-		for i := range ts.m {
-			ts.m[i].Close()
-			delete(ts.m, i)
-		}
-		ts.Unlock()
+	ts.Lock()
+	for i := range ts.m {
+		ts.m[i].Close()
+		delete(ts.m, i)
 	}
-	dbFile := filepath.Join(conf.FileDir, ".torrent.bolt.db")
-	if err := os.RemoveAll(dbFile); err != nil {
-		log.Printf("error delete file %q: %v\n", dbFile, err)
-	}
+	ts.Unlock()
+
 	wd, _ := os.Getwd()
 	if conf.FileDir != "" && conf.FileDir != wd {
 		if err := os.RemoveAll(conf.FileDir); err != nil {
 			log.Printf("error delete dir %q: %v\n", conf.FileDir, err)
 		}
 	}
+	dbFile := filepath.Join(conf.FileDir, ".torrent.bolt.db")
+	if err := os.RemoveAll(dbFile); err != nil {
+		log.Printf("error delete file %q: %v\n", dbFile, err)
+	}
+
 	time.Sleep(time.Second)
 	os.Exit(0)
 }

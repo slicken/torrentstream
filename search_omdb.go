@@ -34,12 +34,12 @@ type Omdb struct {
 func omdbGet(title, year string) (*Omdb, error) {
 	var omdb = new(Omdb)
 
-	if omdbKey == "" {
+	if OMDB_KEY == "" {
 		return omdb, errors.New("OMDB key missing")
 	}
 
 	params := url.Values{}
-	params.Set("apikey", omdbKey)
+	params.Set("apikey", OMDB_KEY)
 
 	params.Set("t", title)
 	if year != "" {
