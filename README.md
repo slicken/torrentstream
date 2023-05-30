@@ -10,7 +10,8 @@ This streaming website is for private use only.<br>
 ### build ###
 ```
 go build -o app
-./run
+export OMDB=your_omdb_key
+./app
 ```
 ### docker ###
 ```

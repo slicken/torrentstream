@@ -40,7 +40,11 @@ func main() {
 	// configuration flags
 	conf = new(Config)
 	flag.StringVar(&conf.Http, "http", ":8080", "http server address")
+<<<<<<< HEAD
 	flag.StringVar(&conf.FileDir, "dir", "tmp", "directory for temporary files")
+=======
+	flag.StringVar(&conf.FileDir, "dir", "tmp", "directory for temp downloads")
+>>>>>>> refs/remotes/origin/master
 	flag.DurationVar(&conf.Idle, "idle", 15*time.Minute, "idle time before closing")
 	flag.IntVar(&conf.Seeders, "seeders", 1, "minimum seeders")
 	flag.IntVar(&conf.Streams, "maximum", 50, "maximum active torrents")
@@ -53,9 +57,20 @@ func main() {
 	flag.Parse()
 
 	// check OMDB key
+<<<<<<< HEAD
 	if OMDB_KEY == "" {
 		log.Println("!!WARNING!! env key 'OMDB' is not set. Will not plot posters and movie info")
 	}
+=======
+	if omdbKey == "" {
+		log.Println("!!WARNING!! env key 'OMDB' is not set. Will not plot posters and movie info")
+	}
+
+	// conf.Idle, err = time.ParseDuration(tmpIdle)
+	// if err != nil {
+	// 	log.Fatalln("could not parse Idle time:", err)
+	// }
+>>>>>>> refs/remotes/origin/master
 
 	// log to file with '--log' arg
 	if strings.Contains(fmt.Sprint(os.Args), "--log") {
@@ -68,14 +83,22 @@ func main() {
 		log.Printf("successfully created logfile %q.\n", logFile.Name())
 	}
 
+<<<<<<< HEAD
 	// check and create temporary file directory
+=======
+	// check and abs download directory
+>>>>>>> refs/remotes/origin/master
 	// TODO: it must work with sub directory, cant be parsed with filepath.IsAbs(..)
 
 	// if conf.FileDir != "" && !filepath.IsAbs(conf.FileDir) {
 	// 	conf.FileDir, _ = filepath.Abs(conf.FileDir)
+<<<<<<< HEAD
 	// tmpDir, err := (conf.FileDir, "")
 	// if err != nil {
 	// 	log.Fatal(err)
+=======
+	log.Printf("temp directory is set %s\n", conf.FileDir)
+>>>>>>> refs/remotes/origin/master
 	// }
 	// defer os.Remove(tmpDir.Name())
 	// log.Printf("temporary files stores in %q", conf.FileDir)
