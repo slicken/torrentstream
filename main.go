@@ -65,8 +65,6 @@ func main() {
 		log.Fatalln("could not parse Idle time:", err)
 	}
 
-	fmt.Println("Idle time is set to:", conf.Idle)
-	fmt.Println(conf.Idle)
 	// log to file with '--log' arg
 	if strings.Contains(fmt.Sprint(os.Args), "--log") {
 		logName := time.Now().Format("01021504") + ".log"
