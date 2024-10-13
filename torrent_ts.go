@@ -105,18 +105,30 @@ func (ts *Ts) Handler() {
 		m := ts.m
 		ts.RUnlock()
 
+		now := time.Now()
+
 		for k, t := range m {
 			t.RLock()
 			since := time.Since(t.Activity)
 			conn := t.Conn
 			t.RUnlock()
 
-			if 0 >= conn && since > (conf.Idle*time.Second) {
-				if t, ok := ts.Get(k); ok {
-					t.Close()
+			// if 0 == conn && since > conf.Idle {
+			// 	if t, ok := ts.Get(k); ok {
+			// 		t.Close()
+			// 	}
+			// 	ts.Delete(k)
+			// }
+
+			if conn == 0 && since > conf.Idle {
+				t.Lock()
+				if conn == 0 && now.Sub(t.Activity) > conf.Idle {
+					t.Unlock()
+					ts.Delete(k)
 				}
-				ts.Delete(k)
+				t.Unlock()
 			}
+
 		}
 		time.Sleep(10 * time.Second)
 	}

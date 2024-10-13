@@ -16,4 +16,4 @@ COPY --from=builder /go/src/app /app
 ENV OMDB 1d0bcf4c
 EXPOSE 8080/tcp
 EXPOSE 5000/udp
-ENTRYPOINT ["./app", "-dir=torrents"]
+ENTRYPOINT ["./app", "-idle=5m"]

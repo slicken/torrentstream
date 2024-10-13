@@ -37,15 +37,14 @@ type Config struct {
 }
 
 func main() {
+	var err error
 	// configuration flags
+	var tmpIdle string
 	conf = new(Config)
 	flag.StringVar(&conf.Http, "http", ":8080", "http server address")
-<<<<<<< HEAD
 	flag.StringVar(&conf.FileDir, "dir", "tmp", "directory for temporary files")
-=======
-	flag.StringVar(&conf.FileDir, "dir", "tmp", "directory for temp downloads")
->>>>>>> refs/remotes/origin/master
-	flag.DurationVar(&conf.Idle, "idle", 15*time.Minute, "idle time before closing")
+	// flag.DurationVar(&conf.Idle, "idle", 15*time.Minute, "idle time before closing")
+	flag.StringVar(&tmpIdle, "idle", "15m", "idle time before closing")
 	flag.IntVar(&conf.Seeders, "seeders", 1, "minimum seeders")
 	flag.IntVar(&conf.Streams, "maximum", 50, "maximum active torrents")
 	// less important
@@ -56,22 +55,18 @@ func main() {
 	flag.BoolVar(&conf.Seed, "seed", false, "seed after download")
 	flag.Parse()
 
-	// check OMDB key
-<<<<<<< HEAD
 	if OMDB_KEY == "" {
 		log.Println("!!WARNING!! env key 'OMDB' is not set. Will not plot posters and movie info")
 	}
-=======
-	if omdbKey == "" {
-		log.Println("!!WARNING!! env key 'OMDB' is not set. Will not plot posters and movie info")
+
+	// Parse the duration and assign it to conf.Idle
+	conf.Idle, err = time.ParseDuration(tmpIdle)
+	if err != nil {
+		log.Fatalln("could not parse Idle time:", err)
 	}
 
-	// conf.Idle, err = time.ParseDuration(tmpIdle)
-	// if err != nil {
-	// 	log.Fatalln("could not parse Idle time:", err)
-	// }
->>>>>>> refs/remotes/origin/master
-
+	fmt.Println("Idle time is set to:", conf.Idle)
+	fmt.Println(conf.Idle)
 	// log to file with '--log' arg
 	if strings.Contains(fmt.Sprint(os.Args), "--log") {
 		logName := time.Now().Format("01021504") + ".log"
@@ -83,33 +78,12 @@ func main() {
 		log.Printf("successfully created logfile %q.\n", logFile.Name())
 	}
 
-<<<<<<< HEAD
-	// check and create temporary file directory
-=======
-	// check and abs download directory
->>>>>>> refs/remotes/origin/master
-	// TODO: it must work with sub directory, cant be parsed with filepath.IsAbs(..)
-
-	// if conf.FileDir != "" && !filepath.IsAbs(conf.FileDir) {
-	// 	conf.FileDir, _ = filepath.Abs(conf.FileDir)
-<<<<<<< HEAD
-	// tmpDir, err := (conf.FileDir, "")
-	// if err != nil {
-	// 	log.Fatal(err)
-=======
-	log.Printf("temp directory is set %s\n", conf.FileDir)
->>>>>>> refs/remotes/origin/master
-	// }
-	// defer os.Remove(tmpDir.Name())
-	// log.Printf("temporary files stores in %q", conf.FileDir)
-	// this statement prints the data showing numbers
 	if _, err := os.Stat(conf.FileDir); os.IsNotExist(err) {
 		os.MkdirAll(conf.FileDir, 0755)
 	}
 	log.Printf("temporary files stores in %q", conf.FileDir)
 
 	// Ts is main torrent diver program
-	var err error
 	ts, err = NewTs()
 	if err != nil {
 		log.Fatal("could not initalize torrent client:", err)
