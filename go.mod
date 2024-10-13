@@ -5,6 +5,8 @@ go 1.20
 require (
 	github.com/PuerkitoBio/goquery v1.8.1
 	github.com/anacrolix/torrent v1.48.0
+	golang.org/x/net v0.23.0
+	golang.org/x/net v0.23.0
 	golang.org/x/time v0.3.0
 )
 
