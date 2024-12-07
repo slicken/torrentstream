@@ -18,7 +18,7 @@ import (
 var (
 	conf     *Config
 	search   *TorrentSites
-	ts       *Ts
+	ts       *TorrentStream
 	OMDB_KEY = os.Getenv("OMDB_KEY")
 )
 
@@ -48,15 +48,15 @@ func main() {
 	flag.IntVar(&conf.Seeders, "seeders", 1, "minimum seeders")
 	flag.IntVar(&conf.Streams, "maximum", 50, "maximum active torrents")
 	// less important
-	flag.IntVar(&conf.Sites, "site", 100, "check torrent sites (minutes)")
-	flag.IntVar(&conf.Nodes, "nodes", 100, "maximum connections per torrent")
+	flag.IntVar(&conf.Sites, "site", 120, "check torrent sites (minutes)")
+	flag.IntVar(&conf.Nodes, "nodes", 50, "maximum connections per torrent")
 	flag.IntVar(&conf.UploadRate, "ul", -1, "max bytes per second (upload)")
 	flag.IntVar(&conf.DownloadRate, "dl", -1, "max bytes per second (download)")
 	flag.BoolVar(&conf.Seed, "seed", false, "seed after download")
 	flag.Parse()
 
 	if OMDB_KEY == "" {
-		log.Println("!!WARNING!! env key 'OMDB' is not set. Will not plot posters and movie info")
+		log.Println("!!WARNING!! environment variable OMDB_KEY is not set. Will not plot posters and movie info")
 	}
 
 	// Parse the duration and assign it to conf.Idle
@@ -81,23 +81,30 @@ func main() {
 	}
 	log.Printf("temporary files stores in %q", conf.FileDir)
 
-	// Ts is main torrent diver program
-	ts, err = NewTs()
+	// application
+	ts, err = StartApplication()
 	if err != nil {
 		log.Fatal("could not initalize torrent client:", err)
 	}
 
-	// meta-search on external torrent sites
-	tpb.find = tpbSearch
-	kat.find = katSearch
+	// load torrent sites to scrape data from
+	kat.Search = katSearch
+	tpb.Search = tpbSearch
 	search = &TorrentSites{
 		sites: []*TorrentSite{
 			tpb,
 			kat,
+			// lime,
 		},
 	}
 	go search.Handler(conf.Sites)
-	log.Printf("initalized torrent sites for %s, %s\n", tpb.Name, kat.Name)
+	time.Sleep(3 * time.Second)
+	for _, site := range search.List() {
+		if !site.Enabled {
+			continue
+		}
+		log.Println("initalized", site.Name)
+	}
 
 	subDB.search = subDBSearch
 	subDB.download = subDBDownload

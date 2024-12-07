@@ -1,11 +1,8 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -15,7 +12,7 @@ import (
 	"time"
 )
 
-const mb = 16 << 16
+// const mb = 16 << 16
 
 var client = &http.Client{
 	Transport: &http.Transport{
@@ -30,12 +27,12 @@ var client = &http.Client{
 }
 
 // savetoFile debug store file
-func savetoFile(path string, data interface{}) error {
-	b := new(bytes.Buffer)
-	json.NewEncoder(b).Encode(data)
+// func savetoFile(path string, data interface{}) error {
+// 	b := new(bytes.Buffer)
+// 	json.NewEncoder(b).Encode(data)
 
-	return ioutil.WriteFile(path, b.Bytes(), 0644)
-}
+// 	return os.WriteFile(path, b.Bytes(), 0644)
+// }
 
 func formatBytes(i int64) string {
 	if i >= 1000000000000 {
@@ -106,33 +103,38 @@ func parseTitle(s string) (title, year string) {
 	return
 }
 
+// videoMIME returns the correct MIME type for video-js based on file extension
 func videoMIME(path string) string {
 	ext := filepath.Ext(path)
 
 	switch ext {
 	case ".m3u", ".m3u8":
-		return "application/x-mpegURL"
+		return "application/vnd.apple.mpegurl" // or "application/x-mpegURL"
 	case ".flv":
 		return "video/x-flv"
 	case ".mp4", ".m4a", ".m4p", ".m4b", ".m4r", ".m4v":
 		return "video/mp4"
-	case ".m1v":
+	case ".m1v", ".mpeg", ".mpg":
 		return "video/mpeg"
-	case ".ogg":
+	case ".ogg", ".ogv":
 		return "video/ogg"
-	case ".asf":
-		return "video/ms-asf"
+	case ".asf", ".asx":
+		return "video/x-ms-asf"
 	case ".ts":
-		return "video/MP2T"
-	case ".3gp":
+		return "video/mp2t"
+	case ".3gp", ".3gpp":
 		return "video/3gpp"
 	case ".mov", ".qt":
 		return "video/quicktime"
 	case ".avi":
 		return "video/x-msvideo"
-	case ".wma", "wmv":
+	case ".wmv":
 		return "video/x-ms-wmv"
+	case ".mkv":
+		return "video/x-matroska"
+	case ".webm":
+		return "video/webm"
 	default:
-		return "application/octet-stream"
+		return "application/octet-stream" // default binary type
 	}
 }

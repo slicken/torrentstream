@@ -3,10 +3,11 @@ package main
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -32,7 +33,7 @@ func subDBDownload(subtitle Subtitle) (string, error) {
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
 	}
@@ -48,7 +49,7 @@ func subDBDownload(subtitle Subtitle) (string, error) {
 	// write subfile
 	file := subtitle.Hash + "_" + subtitle.Lang + ".vtt"
 	path := filepath.Join(conf.FileDir, file)
-	if err := ioutil.WriteFile(path, []byte(vtt), 0666); err != nil {
+	if err := os.WriteFile(path, []byte(vtt), 0666); err != nil {
 		return "", err
 	}
 
@@ -83,7 +84,7 @@ func subDBSearch(hash, lang string) ([]Subtitle, error) {
 		return nil, fmt.Errorf("StatusCode %d", resp.StatusCode)
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}

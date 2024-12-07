@@ -3,11 +3,11 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	"io/ioutil"
+	"io"
 	"net/url"
 )
 
-const omdbURL = "www.omdbapi.com"
+const omdbURL = "omdbapi.com"
 
 // Omdb (imdb) movie struct
 type Omdb struct {
@@ -35,7 +35,7 @@ func omdbGet(title, year string) (*Omdb, error) {
 	var omdb = new(Omdb)
 
 	if OMDB_KEY == "" {
-		return omdb, errors.New("OMDB key missing")
+		return omdb, errors.New("OMDB_KEY key missing")
 	}
 
 	params := url.Values{}
@@ -49,7 +49,7 @@ func omdbGet(title, year string) (*Omdb, error) {
 	params.Set("plot", "short")
 
 	url := url.URL{
-		Scheme:   "http",
+		Scheme:   "https",
 		Host:     omdbURL,
 		RawQuery: params.Encode(),
 	}
@@ -60,7 +60,7 @@ func omdbGet(title, year string) (*Omdb, error) {
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return omdb, err
 	}

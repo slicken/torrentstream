@@ -1,10 +1,8 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
@@ -12,26 +10,24 @@ import (
 	"time"
 
 	"github.com/anacrolix/torrent"
-	"github.com/anacrolix/torrent/metainfo"
 	"golang.org/x/time/rate"
 )
 
-// T is app torrents
+// T holds torrent data
 type T struct {
 	*torrent.Torrent
-	Subs     []Subtitle
-	ID       string
 	Conn     int
 	Activity time.Time
+	Subs     []Subtitle
 	sync.RWMutex
 }
 
 // NewTorrentClient ..
 func NewTorrentClient() (*torrent.Client, error) {
 	cfg := torrent.NewDefaultClientConfig()
-	//cfg.Seed = conf.Seed
+	cfg.Seed = conf.Seed
 	// cfg.NoUpload = true
-	cfg.DisableTrackers = true
+	// cfg.DisableTrackers = true
 	if conf.FileDir != "" {
 		cfg.DataDir = conf.FileDir
 	}
@@ -42,34 +38,6 @@ func NewTorrentClient() (*torrent.Client, error) {
 		cfg.UploadRateLimiter = rate.NewLimiter(rate.Limit(conf.UploadRate), 256<<10)
 	}
 	return torrent.NewClient(cfg)
-}
-
-// NewTorrent ..
-func (ts *Ts) NewTorrent(r *http.Request, m metainfo.Magnet) (*T, error) {
-	t, err := ts.client.AddMagnet(m.String())
-	if err != nil {
-		return nil, err
-	}
-	// not important yet
-	t.SetMaxEstablishedConns(conf.Nodes)
-
-	select {
-	case <-t.GotInfo():
-		// continue...
-	case <-r.Context().Done():
-		t.Drop()
-		return nil, errors.New("request ctx abort")
-	case <-time.After(time.Minute):
-		t.Drop()
-		t.Closed()
-		return nil, errors.New("torrent timeout")
-	}
-
-	return &T{
-		Torrent:  t,
-		ID:       m.InfoHash.String(),
-		Activity: time.Now(),
-	}, nil
 }
 
 // Close ..
@@ -114,31 +82,6 @@ func (t *T) Largest() *torrent.File {
 	return files[0]
 }
 
-func (t *T) activityCtx(r *http.Request) {
-	go func() {
-		t.Lock()
-		t.Conn++
-		t.Activity = time.Now()
-		t.Unlock()
-
-		for {
-			select {
-			case <-r.Context().Done():
-				t.Lock()
-				t.Conn--
-				t.Unlock()
-				return
-
-			default:
-				t.Lock()
-				t.Activity = time.Now()
-				t.Unlock()
-				time.Sleep(time.Second)
-			}
-		}
-	}()
-}
-
 // AddSubtitles ..
 func (t *T) AddSubtitles(lang []string) error {
 	// tr := t.Largest().NewReader()
@@ -152,9 +95,9 @@ func (t *T) AddSubtitles(lang []string) error {
 	// // download sub function
 	t.Subs = append(t.Subs, t.FindSubInTorrent()...)
 
-	if len(t.Subs) == 0 {
-		return errors.New("not subtitles found")
-	}
+	// if len(t.Subs) == 0 {
+	// 	return errors.New("not subtitles found")
+	// }
 
 	return nil
 }
@@ -174,12 +117,11 @@ func (t *T) FindSubInTorrent() []Subtitle {
 			for {
 				fi, err := os.Stat(file)
 				if err != nil {
-					goto SLEEP
-				}
-				if fi.Size() > 0 {
+					time.Sleep(200 * time.Microsecond)
+					continue
+				} else if fi.Size() > 0 {
 					break
 				}
-			SLEEP:
 				time.Sleep(200 * time.Microsecond)
 			}
 

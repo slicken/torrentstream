@@ -7,29 +7,32 @@ making meta-search on The Piratebay, Kickass torrents and plots results (with po
 adds sub if found in torrent, if not then fetching it from subdb and inserts it.<br>
 This streaming website is for private use only.<br>
 
+### preparation ###
+dont forget to get yourself a free omdb api key to plot posters @ https://www.omdbapi.com/
+<br>
 ### build ###
 ```
 go build -o app
-export OMDB=your_omdb_key
+export OMDB_KEY=your_omdb_key
 ./app
 ```
 ### docker ###
 ```
-docker build . -t ts
-docker run -p 8080:8080 -p 5000:5000 ts
+docker build . -t torrentstream
+docker run -p 8080:8080 -p 5000:5000 torrentstream
 ```
 ### app args ###
 ```
-slicken@slk:~$ ./app --help
+pc@me:~$ ./app --help
 Usage of ./app:
   -dir string
-    	directory for temp downloads (default "tmp")
+    	directory for temporary files (default "tmp")
   -dl int
     	max bytes per second (download) (default -1)
   -http string
     	http server address (default ":8080")
-  -idle duration
-    	idle time before closing (default 15m0s)
+  -idle string
+    	idle time before closing (default "15m")
   -maximum int
     	maximum active torrents (default 50)
   -nodes int

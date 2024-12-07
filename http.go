@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"html/template"
 	"log"
 	"net/http"
@@ -18,10 +19,6 @@ const (
 	msgNoresult // 3
 )
 
-// {{range $k, $v := .Ts}}
-// {{$v.Conn}}		{{$k}}
-// {{end}}
-
 var (
 	tplIndex = template.Must(template.ParseFiles("www/index.html"))
 	tplPlay  = template.Must(template.ParseFiles("www/play.html"))
@@ -31,7 +28,7 @@ var (
 	Boot    {{.Time}}
 	Visits  {{.Visits}}
 	Streams {{.Streams}}
-	Active  {{len .Ts}}
+	Active  {{.Active}}
 	
 	--- HISTORY ---
 	{{range .History}}
@@ -58,13 +55,13 @@ func stats(w http.ResponseWriter, r *http.Request) {
 		Time    time.Time
 		Visits  int
 		Streams int
-		Ts      map[string]*T
+		Active  int
 		History []History
 	}{
 		Time:    boot,
 		Visits:  visits,
 		Streams: streams,
-		Ts:      ts.m,
+		Active:  len(ts.m),
 		History: hist,
 	}
 
@@ -72,8 +69,6 @@ func stats(w http.ResponseWriter, r *http.Request) {
 }
 
 func index(w http.ResponseWriter, r *http.Request) {
-	visits++ // stats
-
 	var data = struct {
 		Msg      int
 		Search   string
@@ -95,29 +90,39 @@ func index(w http.ResponseWriter, r *http.Request) {
 		if len(data.T) == 0 {
 			data.Msg = msgNoresult
 		}
+	} else {
+		visits++
 	}
 
 	tplIndex.Execute(w, data)
 }
 
-func play(w http.ResponseWriter, r *http.Request) {
-	streams++ // stats
-
-	// check query
+func processMagnetURI(r *http.Request) (string, metainfo.Magnet, error) {
+	// Check query
 	raw, err := url.QueryUnescape(r.URL.RawQuery)
 	if err != nil {
-		log.Println("error url query:", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return "", metainfo.Magnet{}, err
 	}
-	// parse query
+	// Parse query
 	m, err := metainfo.ParseMagnetURI(raw)
+	if err != nil {
+		return "", metainfo.Magnet{}, err
+	}
+	return raw, m, nil
+}
+
+func play(w http.ResponseWriter, r *http.Request) {
+	streams++
+
+	// Process magnet URI
+	raw, m, err := processMagnetURI(r)
 	if err != nil {
 		log.Println("error magnet uri:", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	// load torrent
+
+	// Load torrent
 	t, err := ts.Load(r, m)
 	if err != nil {
 		log.Printf("error loading %s: %v\n", m.InfoHash.String(), err)
@@ -125,7 +130,7 @@ func play(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// data to send to play
+	// Data to send to play
 	var data = struct {
 		Title       string
 		URI         string
@@ -133,7 +138,7 @@ func play(w http.ResponseWriter, r *http.Request) {
 		Subs        []Subtitle
 	}{
 		Title:       m.DisplayName,
-		URI:         raw,
+		URI:         raw, // Use raw query as URI
 		ContentType: videoMIME(t.Largest().Path()),
 		Subs:        t.Subs,
 	}
@@ -142,36 +147,41 @@ func play(w http.ResponseWriter, r *http.Request) {
 }
 
 func stream(w http.ResponseWriter, r *http.Request) {
-	// check query
-	raw, err := url.QueryUnescape(r.URL.RawQuery)
-	if err != nil {
-		log.Println("error url query:", err)
-		http.Redirect(w, r, "/", 200)
-		return
-	}
-	// parse query
-	m, err := metainfo.ParseMagnetURI(raw)
+	// Process magnet URI
+	_, m, err := processMagnetURI(r)
 	if err != nil {
 		log.Println("error magnet uri:", err)
 		http.Redirect(w, r, "/", 200)
 		return
 	}
-	// get torrrent
+	// Get torrent
 	t, ok := ts.Get(m.InfoHash.String())
 	if !ok {
 		log.Println("error get torrent:", err)
 		http.Redirect(w, r, "/", 200)
 		return
 	}
-	// set activity
-	t.activityCtx(r)
+	t.Conn++
+	// t.activityCtx(r)
+	tFile := t.Largest()
+	tReader := tFile.NewReader()
+	// tReader.SetResponsive()
+	defer tReader.Close()
 
-	tf := t.Largest()
-	tr := tf.NewReader()
-	// tr.SetResponsive()	// test without this
-	defer tr.Close()
+	ctx, cancel := context.WithTimeout(r.Context(), conf.Idle)
+	defer func() {
+		t.Conn--
+		if t.Conn == 0 {
+			tReader.Close()
+			cancel()
+			if ts.Delete(m.InfoHash.String()) {
+				log.Printf("deleted %s (disconnect or timeout)\n", m.DisplayName)
+			}
+		}
+	}()
 
-	w.Header().Set("Connection", "keep-alive")
-	w.Header().Add("Content-Type", videoMIME(tf.Path()))
-	http.ServeContent(w, r, t.Name(), time.Time{}, tr)
+	// w.Header().Set("Connection", "keep-alive")
+	// w.Header().Set("Content-Type", videoMIME(tFile.Path()))
+	http.ServeContent(w, r.WithContext(ctx), t.Name(), time.Time{}, tReader)
+	// http.ServeContent(w, r, t.Name(), time.Time{}, tReader)
 }

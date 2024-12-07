@@ -11,33 +11,60 @@ import (
 	"github.com/anacrolix/torrent/metainfo"
 )
 
-// Ts is main program struct
-type Ts struct {
+// TorrentStream is main program struct
+type TorrentStream struct {
 	client *torrent.Client
 	m      map[string]*T
 	sync.RWMutex
 }
 
-// NewTs initalizes new toorent client
-func NewTs() (*Ts, error) {
+// NewTorrentStream initalizes new toorent client
+func StartApplication() (*TorrentStream, error) {
 	cli, err := NewTorrentClient()
 	if err != nil {
 		return nil, err
 	}
 
-	ts := &Ts{
-		client: cli,
-		m:      make(map[string]*T),
-		// RWMutex: sync.RWMutex{},
+	ts := &TorrentStream{
+		client:  cli,
+		m:       make(map[string]*T),
+		RWMutex: sync.RWMutex{},
 	}
-	// maintain and flush un-used content
-	go ts.Handler()
+
+	// go ts.Handler()
 
 	return ts, nil
 }
 
+// NewTorrent ..
+func (ts *TorrentStream) NewTorrent(r *http.Request, m metainfo.Magnet) (*T, error) {
+	t, err := ts.client.AddMagnet(m.String())
+	if err != nil {
+		return nil, err
+	}
+
+	// t.SetMaxEstablishedConns(conf.Nodes) // not important yet
+
+	select {
+	case <-t.GotInfo():
+		// great, continue..
+	case <-r.Context().Done():
+		t.Drop()
+		return nil, errors.New("request ctx abort")
+	case <-time.After(time.Minute):
+		t.Drop()
+		t.Closed()
+		return nil, errors.New("torrent timeout")
+	}
+
+	return &T{
+		Torrent:  t,
+		Activity: time.Now(),
+	}, nil
+}
+
 // Load adds or returns existing torrent
-func (ts *Ts) Load(r *http.Request, m metainfo.Magnet) (*T, error) {
+func (ts *TorrentStream) Load(r *http.Request, m metainfo.Magnet) (*T, error) {
 	if len(ts.m) > conf.Streams {
 		return nil, errors.New("too many streams")
 	}
@@ -51,31 +78,31 @@ func (ts *Ts) Load(r *http.Request, m metainfo.Magnet) (*T, error) {
 		return t, nil
 	}
 
+	log.Println("adding", m.DisplayName)
+
 	// add torrent
-	log.Println("adding", id)
 	t, err := ts.NewTorrent(r, m)
 	if err != nil {
 		return nil, err
 	}
 
-	// add subtitles if possible - run subfunctions
-	if err = t.AddSubtitles([]string{"en", "se"}); err != nil {
+	if err = t.AddSubtitles([]string{"en", "eng", "se"}); err != nil {
 		log.Println(err)
 	}
 
 	// add to history
-	hist = append(hist, History{time.Now(), t.Name()})
+	hist = append(hist, History{time.Now(), m.DisplayName})
 
-	// add to map and
-	log.Println("streaming", id)
 	ts.Lock()
 	ts.m[id] = t
 	ts.Unlock()
+	log.Println("streaming", m.DisplayName)
+
 	return t, nil
 }
 
 // Get torrent
-func (ts *Ts) Get(id string) (*T, bool) {
+func (ts *TorrentStream) Get(id string) (*T, bool) {
 	ts.RLock()
 	defer ts.RUnlock()
 
@@ -87,7 +114,7 @@ func (ts *Ts) Get(id string) (*T, bool) {
 }
 
 // Delete torrent
-func (ts *Ts) Delete(id string) bool {
+func (ts *TorrentStream) Delete(id string) bool {
 	ts.Lock()
 	defer ts.Unlock()
 
@@ -99,7 +126,7 @@ func (ts *Ts) Delete(id string) bool {
 }
 
 // Handler cleans up stopped connections
-func (ts *Ts) Handler() {
+func (ts *TorrentStream) Handler() {
 	for {
 		ts.RLock()
 		m := ts.m
@@ -107,24 +134,17 @@ func (ts *Ts) Handler() {
 
 		now := time.Now()
 
-		for k, t := range m {
+		for id, t := range m {
 			t.RLock()
 			since := time.Since(t.Activity)
 			conn := t.Conn
 			t.RUnlock()
 
-			// if 0 == conn && since > conf.Idle {
-			// 	if t, ok := ts.Get(k); ok {
-			// 		t.Close()
-			// 	}
-			// 	ts.Delete(k)
-			// }
-
 			if conn == 0 && since > conf.Idle {
 				t.Lock()
 				if conn == 0 && now.Sub(t.Activity) > conf.Idle {
 					t.Unlock()
-					ts.Delete(k)
+					ts.Delete(id)
 				}
 				t.Unlock()
 			}
@@ -132,4 +152,29 @@ func (ts *Ts) Handler() {
 		}
 		time.Sleep(10 * time.Second)
 	}
+}
+
+func (ts *T) activityCtx(r *http.Request) {
+	go func() {
+		ts.Lock()
+		ts.Conn++
+		ts.Activity = time.Now()
+		ts.Unlock()
+
+		for {
+			select {
+			case <-r.Context().Done():
+				ts.Lock()
+				ts.Conn--
+				ts.Unlock()
+				return
+
+			default:
+				ts.Lock()
+				ts.Activity = time.Now()
+				ts.Unlock()
+				time.Sleep(time.Second)
+			}
+		}
+	}()
 }
