@@ -31,7 +31,7 @@ func StartApplication() (*TorrentStream, error) {
 		RWMutex: sync.RWMutex{},
 	}
 
-	// go ts.Handler()
+	go ts.Handler()
 
 	return ts, nil
 }
@@ -78,25 +78,26 @@ func (ts *TorrentStream) Load(r *http.Request, m metainfo.Magnet) (*T, error) {
 		return t, nil
 	}
 
-	log.Println("adding", m.DisplayName)
-
 	// add torrent
+	log.Println("adding", m.DisplayName)
 	t, err := ts.NewTorrent(r, m)
 	if err != nil {
 		return nil, err
 	}
 
+	// add subtitles if possible - run subfunctions
 	if err = t.AddSubtitles([]string{"en", "eng", "se"}); err != nil {
 		log.Println(err)
 	}
 
 	// add to history
-	hist = append(hist, History{time.Now(), m.DisplayName})
+	hist = append(hist, History{time.Now(), t.Name()})
 
+	// add to map and
 	ts.Lock()
 	ts.m[id] = t
 	ts.Unlock()
-	log.Println("streaming", m.DisplayName)
+	log.Println("streaming", t.Name())
 
 	return t, nil
 }
@@ -118,14 +119,16 @@ func (ts *TorrentStream) Delete(id string) bool {
 	ts.Lock()
 	defer ts.Unlock()
 
+	ts.m[id].Close()
+
 	if _, ok := ts.m[id]; !ok {
 		return false
 	}
+
 	delete(ts.m, id)
 	return true
 }
 
-// Handler cleans up stopped connections
 func (ts *TorrentStream) Handler() {
 	for {
 		ts.RLock()
@@ -142,39 +145,14 @@ func (ts *TorrentStream) Handler() {
 
 			if conn == 0 && since > conf.Idle {
 				t.Lock()
-				if conn == 0 && now.Sub(t.Activity) > conf.Idle {
+				if now.Sub(t.Activity) > conf.Idle {
 					t.Unlock()
 					ts.Delete(id)
+				} else {
+					t.Unlock()
 				}
-				t.Unlock()
 			}
-
 		}
 		time.Sleep(10 * time.Second)
 	}
-}
-
-func (ts *T) activityCtx(r *http.Request) {
-	go func() {
-		ts.Lock()
-		ts.Conn++
-		ts.Activity = time.Now()
-		ts.Unlock()
-
-		for {
-			select {
-			case <-r.Context().Done():
-				ts.Lock()
-				ts.Conn--
-				ts.Unlock()
-				return
-
-			default:
-				ts.Lock()
-				ts.Activity = time.Now()
-				ts.Unlock()
-				time.Sleep(time.Second)
-			}
-		}
-	}()
 }

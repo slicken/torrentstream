@@ -69,18 +69,10 @@
     preload="metadata"
     data-setup='{ "playbackRates": [0.25, 0.5, 1, 1.5, 2] }'>
 
-    <!-- <source src='/stream?{{.URI}}' type="{{.MIMEType}}"> -->
-
-    <source src="/stream?{{.URI}}&format=mp4" type="video/mp4">
-    <source src="/stream?{{.URI}}&format=webm" type="video/webm">
-    <source src="/stream?{{.URI}}&format=ogg" type="video/ogg">
-    <source src="/stream?{{.URI}}&format=mov" type="video/quicktime">
-    <source src="/stream?{{.URI}}&format=avi" type="video/x-msvideo">
-    <source src="/stream?{{.URI}}&format=flv" type="video/x-flv">
-    <source src="/stream?{{.URI}}&format=mkv" type="video/x-matroska">
-    <source src="/stream?{{.URI}}&format=3gp" type="video/3gpp">
-    <source src="/stream?{{.URI}}&format=ts" type="video/mp2t">
-    <source src="/stream?{{.URI}}&format=m4v" type="video/x-m4v">
+    <!-- <source src='/stream?{{.URI}}' type="{{.ContentType}}"> -->
+    <source src='/stream?{{.URI}}' type="video/mp4">
+    <source src='/stream?{{.URI}}' type="video/webm">
+    <source src='/stream?{{.URI}}' type="video/ogg">
     <p class="vjs-no-js">your browser does not support the video tag.</p>
 
     {{range .Subs}}

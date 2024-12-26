@@ -1,7 +1,7 @@
 package main
 
 import (
-	"context"
+	"fmt"
 	"html/template"
 	"log"
 	"net/http"
@@ -98,15 +98,13 @@ func index(w http.ResponseWriter, r *http.Request) {
 }
 
 func processMagnetURI(r *http.Request) (string, metainfo.Magnet, error) {
-	// Check query
 	raw, err := url.QueryUnescape(r.URL.RawQuery)
 	if err != nil {
-		return "", metainfo.Magnet{}, err
+		return "", metainfo.Magnet{}, fmt.Errorf("failed to unescape query: %w", err)
 	}
-	// Parse query
-	m, err := metainfo.ParseMagnetURI(raw)
+	m, err := metainfo.ParseMagnetUri(raw)
 	if err != nil {
-		return "", metainfo.Magnet{}, err
+		return "", metainfo.Magnet{}, fmt.Errorf("failed to parse magnet URI: %w", err)
 	}
 	return raw, m, nil
 }
@@ -114,7 +112,6 @@ func processMagnetURI(r *http.Request) (string, metainfo.Magnet, error) {
 func play(w http.ResponseWriter, r *http.Request) {
 	streams++
 
-	// Process magnet URI
 	raw, m, err := processMagnetURI(r)
 	if err != nil {
 		log.Println("error magnet uri:", err)
@@ -122,7 +119,6 @@ func play(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Load torrent
 	t, err := ts.Load(r, m)
 	if err != nil {
 		log.Printf("error loading %s: %v\n", m.InfoHash.String(), err)
@@ -130,58 +126,50 @@ func play(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Data to send to play
-	var data = struct {
+	data := struct {
 		Title       string
 		URI         string
 		ContentType string
 		Subs        []Subtitle
 	}{
 		Title:       m.DisplayName,
-		URI:         raw, // Use raw query as URI
+		URI:         raw,
 		ContentType: videoMIME(t.Largest().Path()),
 		Subs:        t.Subs,
 	}
 
+	log.Println("content type:", data.ContentType)
 	tplPlay.Execute(w, data)
 }
 
 func stream(w http.ResponseWriter, r *http.Request) {
-	// Process magnet URI
+	log.Printf("stream() - start - URL: %s, Method: %s, RemoteAddr: %s", r.URL.String(), r.Method, r.RemoteAddr)
+
 	_, m, err := processMagnetURI(r)
 	if err != nil {
 		log.Println("error magnet uri:", err)
-		http.Redirect(w, r, "/", 200)
+		http.Redirect(w, r, "/", http.StatusFound)
 		return
 	}
-	// Get torrent
+
 	t, ok := ts.Get(m.InfoHash.String())
 	if !ok {
 		log.Println("error get torrent:", err)
-		http.Redirect(w, r, "/", 200)
+		http.Redirect(w, r, "/", http.StatusFound)
 		return
 	}
-	t.Conn++
-	// t.activityCtx(r)
-	tFile := t.Largest()
-	tReader := tFile.NewReader()
-	// tReader.SetResponsive()
-	defer tReader.Close()
 
-	ctx, cancel := context.WithTimeout(r.Context(), conf.Idle)
-	defer func() {
-		t.Conn--
-		if t.Conn == 0 {
-			tReader.Close()
-			cancel()
-			if ts.Delete(m.InfoHash.String()) {
-				log.Printf("deleted %s (disconnect or timeout)\n", m.DisplayName)
-			}
-		}
-	}()
+	// Use the request context for activityCtx
+	t.activityCtx(r.Context())
 
-	// w.Header().Set("Connection", "keep-alive")
-	// w.Header().Set("Content-Type", videoMIME(tFile.Path()))
-	http.ServeContent(w, r.WithContext(ctx), t.Name(), time.Time{}, tReader)
-	// http.ServeContent(w, r, t.Name(), time.Time{}, tReader)
+	tf := t.Largest()
+	tr := tf.NewReader()
+	tr.SetResponsive()
+	defer tr.Close()
+
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Add("Content-Type", videoMIME(tf.Path()))
+	http.ServeContent(w, r, t.Name(), time.Time{}, tr)
+
+	log.Println("stream() - end")
 }

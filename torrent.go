@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -95,9 +97,9 @@ func (t *T) AddSubtitles(lang []string) error {
 	// // download sub function
 	t.Subs = append(t.Subs, t.FindSubInTorrent()...)
 
-	// if len(t.Subs) == 0 {
-	// 	return errors.New("not subtitles found")
-	// }
+	if len(t.Subs) == 0 {
+		return errors.New("not subtitles found")
+	}
 
 	return nil
 }
@@ -146,4 +148,38 @@ func (t *T) FindSubInTorrent() []Subtitle {
 	}
 
 	return subs
+}
+
+func (t *T) activityCtx(ctx context.Context) {
+	go func() {
+		t.Lock()
+		t.Conn++
+		t.Activity = time.Now()
+		t.Unlock()
+
+		defer func() {
+			t.Lock()
+			t.Conn--
+			t.Unlock()
+		}()
+
+		for {
+			select {
+			case <-ctx.Done():
+				t.Lock()
+				t.Conn--
+				t.Unlock()
+				return
+			default:
+				t.Lock()
+				if t.Conn == 0 {
+					t.Unlock()
+					return
+				}
+				t.Activity = time.Now()
+				t.Unlock()
+				time.Sleep(time.Second)
+			}
+		}
+	}()
 }
