@@ -138,13 +138,10 @@ func play(w http.ResponseWriter, r *http.Request) {
 		Subs:        t.Subs,
 	}
 
-	log.Println("content type:", data.ContentType)
 	tplPlay.Execute(w, data)
 }
 
 func stream(w http.ResponseWriter, r *http.Request) {
-	log.Printf("stream() - start - URL: %s, Method: %s, RemoteAddr: %s", r.URL.String(), r.Method, r.RemoteAddr)
-
 	_, m, err := processMagnetURI(r)
 	if err != nil {
 		log.Println("error magnet uri:", err)
@@ -159,7 +156,6 @@ func stream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Use the request context for activityCtx
 	t.activityCtx(r.Context())
 
 	tf := t.Largest()
@@ -170,6 +166,4 @@ func stream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Add("Content-Type", videoMIME(tf.Path()))
 	http.ServeContent(w, r, t.Name(), time.Time{}, tr)
-
-	log.Println("stream() - end")
 }
