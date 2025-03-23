@@ -15,8 +15,8 @@ export OMDB=your_omdb_key
 ```
 ### docker ###
 ```
-docker build . -t ts
-docker run -p 8080:8080 -p 5000:5000 ts
+docker build . -t torrentstream
+docker run -p 8080:8080 -p 5000:5000 torrentstream
 ```
 ### app args ###
 ```
@@ -28,8 +28,6 @@ Usage of ./torrentstream:
     	max bytes per second (download) (default -1)
   -http string
     	http server address (default ":8080")
-  -idle duration
-    	idle time before closing (default 15m0s)
   -maximum int
     	maximum active torrents (default 50)
   -nodes int
@@ -44,6 +42,5 @@ Usage of ./torrentstream:
     	max bytes per second (upload) (default -1)
 ```
 
-![Alt text](screenshot2.png?raw=true "new look")
+![Alt text](screenshot2.png?raw=true "torrentstream.png")
 
-![Alt text](screenshot1.png?raw=true "old look")
