@@ -18,6 +18,32 @@ export OMDB=your_omdb_key
 docker build . -t torrentstream
 docker run -p 8080:8080 -p 5000:5000 torrentstream
 ```
+### systemd service ###
+For automatic restart on failure, install as a systemd service:
+
+1. Copy the service file:
+```bash
+sudo cp torrentstream.service /etc/systemd/system/
+```
+
+2. Edit the service file to set your:
+- Username (replace %i)
+- Working directory
+- OMDB API key
+
+3. Enable and start the service:
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable torrentstream
+sudo systemctl start torrentstream
+```
+
+4. Check status and logs:
+```bash
+sudo systemctl status torrentstream
+sudo journalctl -u torrentstream -f
+```
+
 ### app args ###
 ```
 $ ./torrentstream --help
@@ -42,5 +68,12 @@ Usage of ./torrentstream:
     	max bytes per second (upload) (default -1)
 ```
 
-![Alt text](screenshot2.png?raw=true "torrentstream.png")
+![Alt text](screenshot_new.png?raw=true "torrentstream.png")
+
+### License ###
+This software is provided for educational and research purposes only. The user is responsible for ensuring compliance with local laws and regulations regarding torrent usage and content streaming.
+
+This project is not intended to encourage or facilitate copyright infringement. Users should only stream content they have the legal right to access.
+
+The developers and contributors of this project are not responsible for any misuse or illegal activities performed using this software.
 

@@ -1,0 +1,17 @@
+[Unit]
+Description=TorrentStream Service
+After=network.target
+
+[Service]
+Type=simple
+User=%i
+WorkingDirectory=/opt/torrentstream
+ExecStart=/opt/torrentstream/torrentstream
+Restart=always
+RestartSec=10
+Environment=OMDB_KEY=<your_omdb_key>
+StandardOutput=append:/var/log/torrentstream.log
+StandardError=append:/var/log/torrentstream.error.log
+
+[Install]
+WantedBy=multi-user.target 

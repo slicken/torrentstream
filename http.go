@@ -125,7 +125,11 @@ func play(w http.ResponseWriter, r *http.Request) {
 	torrent, err := app.Add(r, magnet)
 	if err != nil {
 		log.Printf("error loading %s: %v\n", magnet.InfoHash.String(), err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		if err.Error() == "maximum number of active streams reached. Please wait for some streams to finish." {
+			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 		return
 	}
 

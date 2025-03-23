@@ -96,44 +96,41 @@ func (t *T) LargestFile() *torrent.File {
 
 // addSubtitles ..
 func (t *T) addSubtitles(lang []string) error {
-	// tr := t.Largest().NewReader()
-	// defer tr.Close()
-	// hash, err := readHash(tr, 64)
-	// if err != nil {
-	// 	return fmt.Errorf("hashing: %s", err)
-	// } else {
-	// t.Subs = append(t.Subs, subDBdl(hash, lang)...)
-	// }
-	// // download sub function
 	t.Subs = append(t.Subs, t.findSubtitles()...)
 
-	if len(t.Subs) == 0 {
-		return errors.New("not subtitles found")
-	}
+	// if len(t.Subs) == 0 {
+	// 	tr := t.LargestFile().NewReader()
+	// 	defer tr.Close()
+	// 	hash, err := readHash(tr, 64)
+	// 	if err != nil {
+	// 		return fmt.Errorf("hashing: %s", err)
+	// 	} else {
+	// 		t.Subs = append(t.Subs, subDBdl(hash, lang)...)
+	// 	}
+	// }
 
 	return nil
 }
 
-// FindSubtitles ..
+// FindSubInTorrent
 func (t *T) findSubtitles() []Subtitle {
 	var subs []Subtitle
 
-	for _, f := range t.Torrent.Files() {
-		ext := filepath.Ext(f.Path())
+	for _, tf := range t.Torrent.Files() {
+		ext := filepath.Ext(tf.Path())
 
 		if ext == ".vtt" || ext == ".srt" {
 
-			f.Download()
-			file := filepath.Join(conf.FileDir, f.Path())
+			tf.Download()
+			file := filepath.Join(conf.FileDir, tf.Path())
 
-			// Wait for the subtitle file to be created and have content
-			maxRetries := 10
-			for i := 0; i < maxRetries; i++ {
-				fi, err := os.Stat(file)
-				if err == nil && fi.Size() > 0 {
+			for {
+				fileInfo, err := os.Stat(file)
+				if err == nil && fileInfo.Size() > 0 {
 					break
 				}
-				time.Sleep(500 * time.Millisecond)
+
+				time.Sleep(100 * time.Microsecond)
 			}
 
 			if ext == ".srt" {
@@ -144,15 +141,13 @@ func (t *T) findSubtitles() []Subtitle {
 				}
 			}
 
-			// file = file[len(conf.FileDir)+1:]
-
 			var sub Subtitle
 			sub.Format = "vtt"
 			sub.Path = file
-			sub.Lang = "en"
+			sub.Lang = detectLanguageFromFilename(file)
 
 			subs = append(subs, sub)
-			log.Println("subtitle @", file)
+			log.Printf("[%s] subitle found @ %s\n", sub.Lang, filepath.Base(file))
 		}
 	}
 

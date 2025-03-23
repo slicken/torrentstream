@@ -43,25 +43,48 @@ func New() (*App, error) {
 // NewClient ..
 func NewClient() (*torrent.Client, error) {
 	cfg := torrent.NewDefaultClientConfig()
-	//cfg.Seed = conf.Seed
-	// cfg.NoUpload = true
+
+	cfg.Seed = conf.Seed
 	cfg.DisableTrackers = true
+
 	if conf.FileDir != "" {
 		cfg.DataDir = conf.FileDir
 	}
-	if conf.DownloadRate != -1 {
-		cfg.DownloadRateLimiter = rate.NewLimiter(rate.Limit(conf.DownloadRate), 1<<20)
+
+	// Configure download rate limiter
+	if conf.DLRate > 0 {
+		// Use a burst size of 1MB for downloads
+		burst := 1 << 20 // 1MB burst
+		if conf.DLRate < burst {
+			burst = conf.DLRate
+		}
+		cfg.DownloadRateLimiter = rate.NewLimiter(rate.Limit(conf.DLRate), burst)
+		log.Printf("Download rate limited to %d bytes/s (burst: %d bytes)", conf.DLRate, burst)
 	}
-	if conf.UploadRate != -1 {
-		cfg.UploadRateLimiter = rate.NewLimiter(rate.Limit(conf.UploadRate), 256<<10)
+
+	// Configure upload rate limiter
+	if conf.ULRate > 0 {
+		// Use a burst size of 256KB for uploads
+		burst := 256 << 10 // 256KB burst
+		if conf.ULRate < burst {
+			burst = conf.ULRate
+		}
+		cfg.UploadRateLimiter = rate.NewLimiter(rate.Limit(conf.ULRate), burst)
+		log.Printf("Upload rate limited to %d bytes/s (burst: %d bytes)", conf.ULRate, burst)
 	}
+
+	// More lenient peer settings
+	cfg.DisableIPv6 = true       // Disable IPv6 to reduce connection issues
+	cfg.DisableUTP = true        // Disable UTP to use only TCP
+	cfg.DisableWebtorrent = true // Disable WebTorrent to avoid browser-specific issues
+
 	return torrent.NewClient(cfg)
 }
 
 // Add will add or returns existing torrent
 func (app *App) Add(request *http.Request, magnet metainfo.Magnet) (*T, error) {
-	if len(app.torrents) > conf.Streams {
-		return nil, errors.New("too many streams")
+	if conf.Streams > 0 && len(app.torrents) > conf.Streams {
+		return nil, errors.New("maximum number of active streams reached. Please wait for some streams to finish.")
 	}
 	id := magnet.InfoHash.String()
 

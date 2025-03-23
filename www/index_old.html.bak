@@ -1,0 +1,231 @@
+<head>
+    <title>torrentstream.io</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://fonts.googleapis.com/css?family=Lato" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet">
+</head>
+<style>
+    *{margin: 0;box-sizing: border-box;}
+    html{font-family: 'Lato',sans-serif;overflow: auto;}
+    input:focus, textarea:focus, select:focus{outline: none;}
+    .nav{
+        width: 100%;
+        height: 50px;
+        top: 0;
+        left: 0;
+        display: flex;
+        flex-direction: row;
+        justify-content: center;
+        color: whitesmoke;
+        background: rgb(35,35,35);
+        box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2),0 6px 20px 0 rgba(0,0,0,0.19);
+        align-items: center;
+    }
+    .search-bar{
+        position: relative;
+        display: block;
+        overflow: hidden;
+        width: 840px;
+    }
+    .search-bar input{
+        position: inherit;
+        padding-left: 15px;
+        width: 440px;
+        height: 30px;
+        border: 1px solid rgb(50,50,50);
+        border-radius: 2px;
+        background: rgb(25,25,25);
+        color: rgb(175,175,175);
+        font-size: 10pt;
+    }
+    .search-bar button, select{
+        position: inherit;
+        width: 60px;
+        height: 30px;
+        /* border: 1px solid rgb(26,16,16); */
+        border: 1px solid rgb(50,50,50);
+        border-radius: 2px;
+        background: rgb(50,50,50);
+        color: rgb(150,150,150);
+        font-size: 10pt;
+    }
+    .search-bar:hover button:hover, select:hover{
+        color: rgb(225,225,225);
+    }
+    #logo{
+        margin-right: 10px;
+        height: 26px;
+        width: auto;
+    }
+
+    .movie {
+        height: 320px;
+        margin-top: 20px;
+        display: flex;
+        justify-content: center;
+    }
+
+    .poster{
+        position: relative;
+        width: 214px;
+        height: 320px;
+    }
+    .poster img{
+        width:100%;
+        height:100%;
+    }
+    .play-button{
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        opacity: 0.0;
+        padding: 90 40 90 40;
+    }
+    .play-button img{
+        width:100%;
+        height:100%;
+    }
+    .poster:hover .play-button{opacity:0.6; transition: 0.3s;}
+
+    .content{
+        width: 428px;
+        display: flex;
+        flex-direction: column;
+        background: whitesmoke;
+    }
+    .content .info{
+        flex: 70%;
+    }
+    .content .torrent{
+        width: 100%;
+        padding: 5px;
+        /* background: rgba(0,0,0,0.1); */
+        font-size: 9pt;
+        word-wrap: break-word;
+    }
+
+    .info > * {
+        padding: 5px;
+    }
+    .info-title {
+        font-size: 16pt;
+        font-weight: bold;
+    }
+    .info-year {
+        float: right;
+    }
+    .info-genre {
+        font-size: 10pt;
+    }
+    .info-rating {
+        padding-left: 15px;
+        font-weight: bold;
+    }
+    .info-rating .imdbscore {
+        color: orange;
+        font-size: 18px;
+    }
+    .info-rating .metascore {
+        margin-left: 15px;
+        color: white;
+        background: #61c74f;
+        font-size: 15px;
+    }
+    .info-actors {
+        font-size: 10pt;
+    }
+    .msgbox {
+        margin: 20px 0;
+        display: flex;
+        justify-content: center;
+    }
+    .msgbox div{
+        padding:20px;
+        background: whitesmoke;
+        border-radius: 12px;
+        width: 642px;
+    }
+    @media screen and (max-width: 780px){
+        #logo{display: none;}
+        .search-bar{width: 590px;}
+        .movie{margin: 4px 0;}
+        .content{width: 100%;}
+    }
+</style>
+    
+<div class="nav">
+    <div>
+        <form class="search-bar" method="POST">
+            <img id="logo" src="/www/ts.svg" align="top">
+            <input type="text" name="search" placeholder="Search torrent..." autocomplete="off" required>
+            <select name="category">
+                <option value="movie">Movie</option>
+                <option value="tv">TV</option>
+            </select>
+            <button class="icon"><i class="fa fa-search"></i></button>
+        </form>
+    </div>
+</div>
+
+{{if .Msg}}
+<div class="msgbox">
+    {{if (eq .Msg 1)}}
+    <div style="margin: 100px 0px">
+        welcome to torrentstream.io<br><br>
+        we make meta-search on various torrent sites, plots results you can stream directly in browser.<br><br>
+        your browser will playback the content. be sure to use a browser that supports a wide range of videofiles.<br><br>
+
+        2019-03-09: subtitles for "en" "es" are automaticly added, if found on external sub database's.<br>
+    </div>
+
+    {{else if (eq .Msg 2)}}
+    <div>
+        found {{len .T}} results for "{{.Search}}" ({{.Category}})<br>
+    </div>
+
+    {{else if (eq .Msg 3)}}
+    <div style="margin: 100px 0px">
+        no results where found. please try again!<br>
+    </div>
+    {{end}}
+</div>
+{{end}}
+
+
+{{if .T}}
+{{range .T}}
+<div class="movie">
+    <div class="poster">
+        <a href='/play?{{.MagnetURI}}'>
+            {{if .Info.Poster}}
+            <img src={{.Info.Poster}}>
+            {{else}}
+            <img src="/www/no-poster.png">
+            {{end}}
+            <img class="play-button" src="/www/play.png" />
+        </a>
+    </div>
+    
+    <div class="content">
+        <div class="info">
+            {{if .Info.Poster}}
+            <div class="info-year">({{.Info.Year}})</div>
+            <div class="info-title">{{.Info.Title}}</div>
+            <div class="info-genre">{{.Info.Runtime}} | {{.Info.Genre}}</div>
+            <div class="info-rating"><span class="imdbscore"><i class="fa fa-star"></i></span> {{.Info.ImdbRating}}<span class="metascore">{{.Info.Metascore}}</span> Metascore</div>
+            <div>{{.Info.Plot}}</div>
+            <div class="info-actors">Director: {{.Info.Director}}<br>Actors: {{.Info.Actors}}</div>
+            {{end}}
+        </div>
+        <div class="torrent">
+            <p><b>{{.Title}}</b></p>
+            <p>{{.SiteID}} <span style="float:right;">{{.Size}}</span></p>
+            <p>Seeders: {{.Seeders}}<span style="float:right;">Leechers: {{.Leechers}}</span></p>
+        </div>
+    </div>
+</div>
+{{end}}
+{{end}}

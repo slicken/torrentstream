@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"strings"
 )
 
 // create a subhash from x kb read of beggining and end of file
@@ -77,4 +78,57 @@ func subFileConvert(f string) (string, error) {
 func srt2vtt(text string) string {
 	srt := regexp.MustCompile(`,`)
 	return "WEBVTT\n\n" + srt.ReplaceAllLiteralString(text, `.`)
+}
+
+// detectLanguageFromFilename tries to extract language code from subtitle filename
+func detectLanguageFromFilename(fileName string) string {
+	fileName = strings.ToLower(fileName)
+
+	// Common language patterns in subtitle files
+	langPatterns := map[string]string{
+		".en.":        "en",
+		".eng.":       "en",
+		"english.":    "en",
+		".fr.":        "fr",
+		".fre.":       "fr",
+		"french.":     "fr",
+		".es.":        "es",
+		".spa.":       "es",
+		"spanish.":    "es",
+		".de.":        "de",
+		".ger.":       "de",
+		"german.":     "de",
+		".it.":        "it",
+		".ita.":       "it",
+		"italian.":    "it",
+		".pt.":        "pt",
+		".por.":       "pt",
+		"portuguese.": "pt",
+		".ru.":        "ru",
+		".rus.":       "ru",
+		"russian.":    "ru",
+		".se.":        "se",
+		".swe.":       "se",
+		"swedish.":    "se",
+		".nl.":        "nl",
+		".dut.":       "nl",
+		"dutch.":      "nl",
+		".ja.":        "ja",
+		".jpn.":       "ja",
+		"japanese.":   "ja",
+		".zh.":        "zh",
+		".chi.":       "zh",
+		"chinese.":    "zh",
+		".ko.":        "ko",
+		".kor.":       "ko",
+		"korean.":     "ko",
+	}
+
+	for pattern, lang := range langPatterns {
+		if strings.Contains(fileName, pattern) {
+			return lang
+		}
+	}
+
+	return "unknown"
 }

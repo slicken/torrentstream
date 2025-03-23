@@ -2,19 +2,14 @@ package main
 
 import (
 	"flag"
-	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
 )
-
-// globals
 
 var (
 	conf     *Config
@@ -23,60 +18,38 @@ var (
 	OMDB_KEY = os.Getenv("OMDB_KEY")
 )
 
-// Config global
+// App Config
 type Config struct {
-	Http         string
-	FileDir      string
-	Idle         time.Duration
-	Streams      int
-	Seeders      int
-	Sites        int
-	Nodes        int
-	UploadRate   int
-	DownloadRate int
-	Seed         bool
-	Trackers     bool
+	Http     string
+	FileDir  string
+	Streams  int
+	Seeders  int
+	Sites    int
+	Nodes    int
+	ULRate   int
+	DLRate   int
+	Seed     bool
+	Trackers bool
 }
 
 func main() {
 	var err error
 	// configuration flags
-	var tmpIdle string
 	conf = new(Config)
 	flag.StringVar(&conf.Http, "http", ":8080", "http server address")
 	flag.StringVar(&conf.FileDir, "dir", "tmp", "directory for temporary files")
-	// flag.DurationVar(&conf.Idle, "idle", 15*time.Minute, "idle time before closing")
-	flag.StringVar(&tmpIdle, "idle", "15m", "idle time before closing")
-	flag.IntVar(&conf.Seeders, "seeders", 1, "minimum seeders")
-	flag.IntVar(&conf.Streams, "maximum", 50, "maximum active torrents")
-	// less important
-	flag.IntVar(&conf.Sites, "site", 100, "check torrent sites (minutes)")
+	flag.IntVar(&conf.Seeders, "seeders", 1, "minimum seeders to show torrent as result")
+	flag.IntVar(&conf.Streams, "maximum", 0, "maximum active torrents (0=unlimited)")
+	flag.IntVar(&conf.Sites, "site", 60, "check torrent sites (minutes)")
 	flag.IntVar(&conf.Nodes, "nodes", 100, "maximum connections per torrent")
-	flag.IntVar(&conf.UploadRate, "ul", -1, "max bytes per second (upload)")
-	flag.IntVar(&conf.DownloadRate, "dl", -1, "max bytes per second (download)")
+	flag.IntVar(&conf.ULRate, "ul", -1, "max bytes per second (upload)")
+	flag.IntVar(&conf.DLRate, "dl", -1, "max bytes per second (download)")
 	flag.BoolVar(&conf.Seed, "seed", false, "seed after download")
 	flag.BoolVar(&conf.Trackers, "trackers", false, "add trackers to magnet links")
 	flag.Parse()
 
 	if OMDB_KEY == "" {
-		log.Println("!!WARNING!! env key 'OMDB' is not set. Will not plot posters and movie info")
-	}
-
-	// Parse the duration and assign it to conf.Idle
-	conf.Idle, err = time.ParseDuration(tmpIdle)
-	if err != nil {
-		log.Fatalln("could not parse Idle time:", err)
-	}
-
-	// log to file with '--log' arg
-	if strings.Contains(fmt.Sprint(os.Args), "--log") {
-		logName := time.Now().Format("01021504") + ".log"
-		logFile, err := os.Create(logName)
-		if err != nil {
-			log.Fatalf("could not create logfile %q: %v", logFile.Name(), err)
-		}
-		log.SetOutput(io.MultiWriter(os.Stderr, logFile))
-		log.Printf("successfully created logfile %q.\n", logFile.Name())
+		log.Println("!!WARNING!! env key 'OMDB_KEY' is not set. Will not plot posters and movie info")
 	}
 
 	if _, err := os.Stat(conf.FileDir); os.IsNotExist(err) {
@@ -116,10 +89,21 @@ func main() {
 	http.HandleFunc("/stats", stats)
 
 	// https server
-	go func() {
-		log.Println("http server running at", conf.Http)
-		log.Fatal(http.ListenAndServe(conf.Http, nil))
-	}()
+	// Create a custom server with settings optimized for streaming
+	server := &http.Server{
+		Addr:    conf.Http,
+		Handler: nil, // Use default handler
+		// Increase timeouts to prevent interruptions during streaming
+		ReadTimeout:       5 * time.Minute,
+		ReadHeaderTimeout: 30 * time.Second,
+		WriteTimeout:      30 * time.Minute,
+		IdleTimeout:       2 * time.Minute,
+		// Configure for streaming with potentially imperfect data
+		MaxHeaderBytes: 1 << 20, // 1MB
+	}
+
+	log.Println("http server running at", conf.Http)
+	go log.Fatal(server.ListenAndServe())
 
 	HandleInterrupt()
 }

@@ -66,10 +66,29 @@
     crossorigin="anonymous"
     width="100%" height="100%"
     controls
-    preload="metadata"
-    data-setup='{ "playbackRates": [0.25, 0.5, 1, 1.5, 2] }'>
+    preload="auto"
+    autoplay
+    playsinline
+    data-setup='{ 
+        "playbackRates": [0.25, 0.5, 1, 1.5, 2],
+        "autoplay": true,
+        "muted": false,
+        "techOrder": ["html5"],
+        "html5": {
+            "nativeTextTracks": false,
+            "nativeAudioTracks": false,
+            "nativeVideoTracks": false
+        },
+        "liveui": true,
+        "liveTracker": {
+            "trackingThreshold": 0,
+            "liveTolerance": 15
+        }
+    }'>
 
-    <source src='/stream?{{.URI}}' type="video/mp4">
+    <source src='/stream?{{.URI}}' type="video/mp4" label="MP4">
+    <source src='/stream?{{.URI}}' type="video/webm">
+    <source src='/stream?{{.URI}}' type="video/ogg">
     <p class="vjs-no-js">your browser does not support the video tag.</p>
 
     {{range .Subs}}
@@ -80,9 +99,161 @@
 
 <script>
 var player = videojs('video');
-player.play()
-player.ready(function(){
-this.hotkeys({
+var retryCount = 0;
+var maxRetries = 5;
+var currentTime = 0;
+
+// Save current time before error
+player.on('timeupdate', function() {
+    currentTime = player.currentTime();
+});
+
+// Aggressive autoplay function
+function forcePlay() {
+    var playPromise = player.play();
+    if (playPromise !== undefined) {
+        playPromise.then(function() {
+            console.log("Video started playing");
+        }).catch(function(error) {
+            console.log("Play failed:", error);
+            // If autoplay fails, try with muted state
+            player.muted(true);
+            player.play().then(function() {
+                console.log("Video started playing (muted)");
+                // Try to unmute after a short delay
+                setTimeout(function() {
+                    player.muted(false);
+                    player.play();
+                }, 1000);
+            });
+        });
+    }
+}
+
+// Handle video errors with better recovery
+player.on('error', function() {
+    var error = player.error();
+    console.log('Video Error:', error);
+    
+    // Save current time before recovery attempt
+    var lastTime = currentTime;
+    
+    // Handle specific error types
+    switch(error.code) {
+        case 1: // MEDIA_ERR_ABORTED
+            console.log('Playback aborted, attempting recovery...');
+            break;
+        case 2: // MEDIA_ERR_NETWORK
+            console.log('Network error, attempting recovery...');
+            break;
+        case 3: // MEDIA_ERR_DECODE
+            console.log('Decode error, attempting recovery...');
+            break;
+        case 4: // MEDIA_ERR_SRC_NOT_SUPPORTED
+            console.log('Format not supported, attempting recovery...');
+            break;
+        default:
+            console.log('Unknown error, attempting recovery...');
+    }
+    
+    if (retryCount < maxRetries) {
+        retryCount++;
+        console.log('Recovery attempt ' + retryCount + ' of ' + maxRetries);
+        
+        // Try to recover by reloading the video
+        setTimeout(function() {
+            // Try different formats in order of preference
+            var formats = [
+                { type: 'video/mp4', src: '/stream?{{.URI}}' },
+                { type: 'video/webm', src: '/stream?{{.URI}}' },
+                { type: 'video/ogg', src: '/stream?{{.URI}}' }
+            ];
+            
+            var currentFormat = formats[retryCount % formats.length];
+            console.log('Trying format:', currentFormat.type);
+            
+            player.src(currentFormat);
+            
+            // After source change, try to restore playback position
+            player.ready(function() {
+                if (lastTime > 0) {
+                    player.currentTime(lastTime);
+                }
+                player.play().catch(function(e) {
+                    console.log('Recovery play failed:', e);
+                });
+            });
+        }, 1000);
+    } else {
+        console.log('Max retries reached, attempting final recovery...');
+        // Final attempt with original format
+        player.src({
+            type: 'video/mp4',
+            src: '/stream?{{.URI}}'
+        });
+        retryCount = 0;
+    }
+});
+
+// Handle buffering with recovery
+player.on('waiting', function() {
+    console.log('Video buffering...');
+    // If buffering takes too long, try to recover
+    setTimeout(function() {
+        if (player.paused() && !player.seeking()) {
+            console.log('Buffering timeout, attempting recovery...');
+            player.src({
+                type: 'video/mp4',
+                src: '/stream?{{.URI}}'
+            });
+        }
+    }, 5000);
+});
+
+// Handle stalled playback
+player.on('stalled', function() {
+    console.log('Video stalled, attempting recovery...');
+    var lastTime = currentTime;
+    
+    player.src({
+        type: 'video/mp4',
+        src: '/stream?{{.URI}}'
+    });
+    
+    player.ready(function() {
+        if (lastTime > 0) {
+            player.currentTime(lastTime);
+        }
+        player.play().catch(function(e) {
+            console.log('Stalled recovery play failed:', e);
+        });
+    });
+});
+
+// Initialize player with better error handling
+player.ready(function() {
+    // Set buffer settings for better playback
+    player.bufferSize(30);
+    
+    // Force play immediately
+    forcePlay();
+    
+    // Try to play on various events
+    player.on('loadeddata', forcePlay);
+    player.on('canplay', forcePlay);
+    player.on('play', function() {
+        console.log('Video playing');
+        retryCount = 0; // Reset retry count on successful play
+    });
+    
+    // Handle source changes
+    player.on('sourcechange', function() {
+        console.log('Source changed, forcing playback');
+        forcePlay();
+    });
+});
+
+player.hotkeys({
     volumeStep: 0.1,
     seekStep: 5,
     enableMute: true,
@@ -152,6 +323,6 @@ this.hotkeys({
                 }
             },
         }
-    });
-});
+    }
+);
 </script>
