@@ -9,9 +9,9 @@ This streaming website is for private use only.<br>
 
 ### build ###
 ```
-go build -o app
+CGO_ENABLE=0 go build
 export OMDB=your_omdb_key
-./app
+./torrentstream
 ```
 ### docker ###
 ```
@@ -20,8 +20,8 @@ docker run -p 8080:8080 -p 5000:5000 ts
 ```
 ### app args ###
 ```
-slicken@slk:~$ ./app --help
-Usage of ./app:
+$ ./torrentstream --help
+Usage of ./torrentstream:
   -dir string
     	directory for temp downloads (default "tmp")
   -dl int
@@ -44,4 +44,6 @@ Usage of ./app:
     	max bytes per second (upload) (default -1)
 ```
 
-![Alt text](ts_screen.png?raw=true "torrentstream")
+![Alt text](screenshot2.png?raw=true "new look")
+
+![Alt text](screenshot1.png?raw=true "old look")
