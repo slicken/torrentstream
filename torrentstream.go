@@ -190,9 +190,8 @@ func (app *App) handler() {
 					torrent.RLock()
 					conn := torrent.Conn
 					torrent.RUnlock()
-					idle := time.Since(torrent.Activity) > conf.Idle
 
-					if conn == 0 && idle {
+					if conn == 0 {
 						torrentsToDelete = append(torrentsToDelete, id)
 					}
 				}

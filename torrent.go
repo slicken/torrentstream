@@ -39,7 +39,7 @@ func (app *App) newTorrent(request *http.Request, magnet metainfo.Magnet) (*T, e
 		// continue...
 	case <-request.Context().Done():
 		torrent.Drop()
-		return nil, errors.New("request ctx abort")
+		return nil, errors.New("request Context aborted")
 	case <-time.After(time.Minute):
 		torrent.Drop()
 		torrent.Closed()
