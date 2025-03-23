@@ -6,6 +6,7 @@ require (
 	github.com/PuerkitoBio/goquery v1.10.2
 	github.com/anacrolix/torrent v1.58.1
 	golang.org/x/time v0.11.0
+	golang.org/x/net v0.36.0
 )
 
 require (
