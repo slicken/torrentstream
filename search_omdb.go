@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	"io/ioutil"
+	"io"
 	"net/url"
 )
 
@@ -30,8 +30,8 @@ type Omdb struct {
 	DVD        string `json:"DVD"`
 }
 
-// omdbGet ..
-func omdbGet(title, year string) (*Omdb, error) {
+// getOMDB ..
+func getOMDB(title, year string) (*Omdb, error) {
 	var omdb = new(Omdb)
 
 	if OMDB_KEY == "" {
@@ -49,7 +49,7 @@ func omdbGet(title, year string) (*Omdb, error) {
 	params.Set("plot", "short")
 
 	url := url.URL{
-		Scheme:   "http",
+		Scheme:   "https",
 		Host:     omdbURL,
 		RawQuery: params.Encode(),
 	}
@@ -60,7 +60,7 @@ func omdbGet(title, year string) (*Omdb, error) {
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return omdb, err
 	}

@@ -14,7 +14,7 @@ var kat = &TorrentSite{
 	Name:      "Kickass torrents",
 	Scheme:    "https",
 	URL:       "kickass2.cc",
-	UserAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/53.0.2785.143 Safari/537.36",
+	UserAgent: "",
 }
 
 func katSearch(title, category string, ch chan *Torrent) error {
@@ -40,7 +40,7 @@ func katSearch(title, category string, ch chan *Torrent) error {
 	if err != nil {
 		return err
 	}
-	req.Header.Set("User-Agent", kat.UserAgent)
+
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
@@ -81,16 +81,16 @@ func katSearch(title, category string, ch chan *Torrent) error {
 				return
 			}
 			// make torrent
-			var t = new(Torrent)
-			t.MagnetURI = magnet
-			t.ID = hash
-			t.Title = s.Find("div.torrentname a").Text()
-			t.Seeders, _ = strconv.Atoi(s.Find("td").Eq(3).Text())
-			t.Leechers, _ = strconv.Atoi(s.Find("td").Eq(1).Text())
-			t.Size = s.Find("td").Eq(1).Text()
-			t.SiteID = kat.Name
+			var torrent = new(Torrent)
+			torrent.MagnetURI = magnet
+			torrent.ID = hash
+			torrent.Title = s.Find("div.torrentname a").Text()
+			torrent.Seeders, _ = strconv.Atoi(s.Find("td").Eq(3).Text())
+			torrent.Leechers, _ = strconv.Atoi(s.Find("td").Eq(1).Text())
+			torrent.Size = s.Find("td").Eq(1).Text()
+			torrent.SiteID = kat.Name
 			// send torrent to channel
-			ch <- t
+			ch <- torrent
 		}()
 	})
 

@@ -15,10 +15,11 @@ import (
 )
 
 // globals
+
 var (
 	conf     *Config
 	search   *TorrentSites
-	ts       *Ts
+	app      *App
 	OMDB_KEY = os.Getenv("OMDB_KEY")
 )
 
@@ -34,6 +35,7 @@ type Config struct {
 	UploadRate   int
 	DownloadRate int
 	Seed         bool
+	Trackers     bool
 }
 
 func main() {
@@ -53,6 +55,7 @@ func main() {
 	flag.IntVar(&conf.UploadRate, "ul", -1, "max bytes per second (upload)")
 	flag.IntVar(&conf.DownloadRate, "dl", -1, "max bytes per second (download)")
 	flag.BoolVar(&conf.Seed, "seed", false, "seed after download")
+	flag.BoolVar(&conf.Trackers, "trackers", false, "add trackers to magnet links")
 	flag.Parse()
 
 	if OMDB_KEY == "" {
@@ -82,21 +85,22 @@ func main() {
 	log.Printf("temporary files stores in %q", conf.FileDir)
 
 	// Ts is main torrent diver program
-	ts, err = NewTs()
+	app, err = New()
 	if err != nil {
 		log.Fatal("could not initalize torrent client:", err)
 	}
 
 	// meta-search on external torrent sites
-	tpb.find = tpbSearch
-	kat.find = katSearch
+	tpb.ScrapeFunc = tpbSearch
+	kat.ScrapeFunc = katSearch
 	search = &TorrentSites{
 		sites: []*TorrentSite{
 			tpb,
 			kat,
 		},
 	}
-	go search.Handler(conf.Sites)
+
+	search.Handler(conf.Sites)
 	log.Printf("initalized torrent sites for %s, %s\n", tpb.Name, kat.Name)
 
 	subDB.search = subDBSearch
@@ -125,27 +129,48 @@ func HandleInterrupt() {
 	closeChan := make(chan os.Signal, 1)
 	signal.Notify(closeChan, os.Interrupt, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
-	s := <-closeChan
-	log.Printf("\n%+v recived. shutting down.\n", s)
+	log.Printf("\n%+v received. shutting down.\n", <-closeChan)
 
-	ts.Lock()
-	for i := range ts.m {
-		ts.m[i].Close()
-		delete(ts.m, i)
-	}
-	ts.Unlock()
+	// Create a channel to signal when cleanup is complete
+	cleanupDone := make(chan struct{})
+	go func() {
+		// Stop the app's goroutines and clean up torrents
+		app.Close()
 
-	wd, _ := os.Getwd()
-	if conf.FileDir != "" && conf.FileDir != wd {
-		if err := os.RemoveAll(conf.FileDir); err != nil {
-			log.Printf("error delete dir %q: %v\n", conf.FileDir, err)
+		// Clean up files
+		wd, _ := os.Getwd()
+		if conf.FileDir != "" && conf.FileDir != wd {
+			// Try to remove the directory multiple times with increasing delays
+			for i := 0; i < 3; i++ {
+				if err := os.RemoveAll(conf.FileDir); err != nil {
+					log.Printf("attempt %d: error deleting directory %q: %v\n", i+1, conf.FileDir, err)
+					time.Sleep(100 * time.Millisecond)
+					continue
+				}
+				break
+			}
+		}
+
+		// Clean up database file
+		dbFile := filepath.Join(conf.FileDir, ".torrent.bolt.db")
+		if err := os.RemoveAll(dbFile); err != nil {
+			log.Printf("error deleting file %q: %v\n", dbFile, err)
+		}
+
+		close(cleanupDone)
+	}()
+
+	// Wait for cleanup with timeout
+	select {
+	case <-cleanupDone:
+		log.Println("Cleanup completed successfully")
+	case <-time.After(3 * time.Second):
+		log.Println("Cleanup timed out, forcing exit")
+		// Force kill any remaining processes
+		if p, err := os.FindProcess(os.Getpid()); err == nil {
+			p.Kill()
 		}
 	}
-	dbFile := filepath.Join(conf.FileDir, ".torrent.bolt.db")
-	if err := os.RemoveAll(dbFile); err != nil {
-		log.Printf("error delete file %q: %v\n", dbFile, err)
-	}
 
-	time.Sleep(time.Second)
 	os.Exit(0)
 }

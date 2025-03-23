@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"regexp"
 )
@@ -59,7 +58,7 @@ func subHash(path string, kb int64) (string, error) {
 
 // convert and write vtt
 func subFileConvert(f string) (string, error) {
-	srt, err := ioutil.ReadFile(f)
+	srt, err := os.ReadFile(f)
 	if err != nil {
 		return "", err
 	}
@@ -67,7 +66,7 @@ func subFileConvert(f string) (string, error) {
 	vtt := srt2vtt(string(srt))
 	// write subfile
 	file := f + ".vtt"
-	if err := ioutil.WriteFile(file, []byte(vtt), 0666); err != nil {
+	if err := os.WriteFile(file, []byte(vtt), 0666); err != nil {
 		return "", err
 	}
 

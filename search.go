@@ -24,12 +24,12 @@ type Torrent struct {
 
 // TorrentSite struct
 type TorrentSite struct {
-	Name      string
-	Scheme    string
-	URL       string
-	UserAgent string
-	Enabled   bool
-	find      func(string, string, chan *Torrent) error
+	Name       string
+	Scheme     string
+	URL        string
+	UserAgent  string
+	Enabled    bool
+	ScrapeFunc func(string, string, chan *Torrent) error
 }
 
 // TorrentSites contains torrent search sites
@@ -39,20 +39,20 @@ type TorrentSites struct {
 }
 
 // List ..
-func (db *TorrentSites) List() []*TorrentSite {
-	db.RLock()
-	defer db.RUnlock()
+func (ts *TorrentSites) List() []*TorrentSite {
+	ts.RLock()
+	defer ts.RUnlock()
 
-	return db.sites
+	return ts.sites
 }
 
 // Enabled ..
-func (db *TorrentSites) Enabled() []*TorrentSite {
-	db.RLock()
-	defer db.RUnlock()
+func (ts *TorrentSites) Enabled() []*TorrentSite {
+	ts.RLock()
+	defer ts.RUnlock()
 
 	var sites []*TorrentSite
-	for _, site := range db.sites {
+	for _, site := range ts.sites {
 		if site.Enabled {
 			sites = append(sites, site)
 		}
@@ -61,52 +61,52 @@ func (db *TorrentSites) Enabled() []*TorrentSite {
 	return sites
 }
 
-// Handler is Enabling Disablid external search sites based on site response
-func (db *TorrentSites) Handler(minutes int) {
+// Handler is keeping track of torrentSites, if they are up or down.
+func (ts *TorrentSites) Handler(minutes int) {
+	go func() {
+		for {
+			for i, site := range ts.List() {
+				// make url
+				url := url.URL{
+					Scheme: site.Scheme,
+					Host:   site.URL,
+				}
 
-	for {
-		for i, site := range db.List() {
+				req, err := http.NewRequest("GET", url.String(), nil)
+				if err != nil {
+					return
+				}
 
-			// make url
-			url := url.URL{
-				Scheme: site.Scheme,
-				Host:   site.URL,
+				// do request (client from search_utils.go already handles random user agents)
+				resp, err := client.Do(req)
+				if err != nil {
+					ts.sites[i].Enabled = false
+					log.Println(site.Name, "Disabled:", err)
+					continue
+				}
+				resp.Body.Close()
+
+				// update status
+				if resp.StatusCode != http.StatusOK {
+					ts.sites[i].Enabled = false
+					log.Println(site.Name, "Disabled - Status code:", resp.StatusCode)
+				} else {
+					ts.sites[i].Enabled = true
+				}
 			}
 
-			req, err := http.NewRequest("GET", url.String(), nil)
-			if err != nil {
-				return
-			}
-			// do request
-			req.Header.Set("User-Agent", site.UserAgent)
-			resp, err := client.Do(req)
-			if err != nil {
-				db.sites[i].Enabled = false
-				log.Println(site.Name, "Disabled:", err)
-				continue
-			}
-			resp.Body.Close()
-
-			// update status
-			if resp.StatusCode != http.StatusOK {
-				db.sites[i].Enabled = false
-				log.Println(site.Name, "Disabled - Status code:", resp.StatusCode)
-			} else {
-				db.sites[i].Enabled = true
-			}
+			time.Sleep(time.Duration(minutes) * time.Minute)
 		}
-
-		time.Sleep(time.Duration(minutes) * time.Minute)
-	}
+	}()
 }
 
 // SearchTorrent makes concurrent search on all enabled sites..
-func (db *TorrentSites) SearchTorrent(title, category string) []*Torrent {
+func (ts *TorrentSites) SearchTorrent(title, category string) []*Torrent {
 	var wg sync.WaitGroup
-	var infos = make(map[string]*Omdb, 0)
+	var mapOmdb = make(map[string]*Omdb, 0)
 	var ch = make(chan *Torrent)
 
-	for _, s := range db.Enabled() {
+	for _, site := range ts.Enabled() {
 
 		wg.Add(1)
 		go func(site TorrentSite) {
@@ -114,7 +114,7 @@ func (db *TorrentSites) SearchTorrent(title, category string) []*Torrent {
 
 			var c = make(chan *Torrent)
 			go func() {
-				err := site.find(title, category, c)
+				err := site.ScrapeFunc(title, category, c)
 				if err != nil {
 					log.Printf("search error '%s' on %s: %v\n", title, site.Name, err)
 				}
@@ -122,44 +122,45 @@ func (db *TorrentSites) SearchTorrent(title, category string) []*Torrent {
 
 			// get omdb content
 			var vg sync.WaitGroup
-			for t := range c {
+			for torrent := range c {
 
 				vg.Add(1)
-				go func(t *Torrent, infos map[string]*Omdb) {
+				go func(torrent *Torrent, mapOmdb map[string]*Omdb) {
 					defer vg.Done()
 
 					// check is this torrent nr of seeders passes minimum seeders in config
-					if t.Seeders < conf.Seeders {
+					if torrent.Seeders < conf.Seeders {
 						return
 					}
-					title, year := parseTitle(t.Title)
-					// check if poster alredy exist from previous dl
+					title, year := parseTitle(torrent.Title)
 
-					// db.RLock() // ----- CHECKING IF IT WORKS WITHOUT -----
-					list := infos
-					// db.RUnlock()
-					for k, omdb := range list {
-						if k == title {
-							t.Info = omdb
-							ch <- t
+					// check if poster alredy exist from previous dl
+					ts.RLock()
+					list := mapOmdb
+					ts.RUnlock()
+
+					for name, omdb := range list {
+						if name == title {
+							torrent.Info = omdb
+							ch <- torrent
 							return
 						}
 					}
-					// if info didnt exist, dl
-					omdb, _ := omdbGet(title, year)
+					// if info didnt exist, download it
+					omdb, _ := getOMDB(title, year)
 					// if no link to poster. clear its field to endable the 'no poster' imgage
 					if !strings.Contains(omdb.Poster, "http") {
 						omdb.Poster = ""
 					}
-					t.Info = omdb
-					ch <- t
-					db.Lock()
-					infos[title] = omdb
-					db.Unlock()
-				}(t, infos)
+					torrent.Info = omdb
+					ch <- torrent
+					ts.Lock()
+					mapOmdb[title] = omdb
+					ts.Unlock()
+				}(torrent, mapOmdb)
 			}
 			vg.Wait()
-		}(*s)
+		}(*site)
 	}
 
 	go func() {
@@ -169,8 +170,8 @@ func (db *TorrentSites) SearchTorrent(title, category string) []*Torrent {
 
 	// add to slice
 	var torrents = make([]*Torrent, 0)
-	for t := range ch {
-		torrents = append(torrents, t)
+	for torrent := range ch {
+		torrents = append(torrents, torrent)
 	}
 
 	// sort by seeders

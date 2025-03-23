@@ -13,7 +13,6 @@ import (
 
 	"github.com/anacrolix/torrent"
 	"github.com/anacrolix/torrent/metainfo"
-	"golang.org/x/time/rate"
 )
 
 // T is app torrents
@@ -26,57 +25,38 @@ type T struct {
 	sync.RWMutex
 }
 
-// NewTorrentClient ..
-func NewTorrentClient() (*torrent.Client, error) {
-	cfg := torrent.NewDefaultClientConfig()
-	//cfg.Seed = conf.Seed
-	// cfg.NoUpload = true
-	cfg.DisableTrackers = true
-	if conf.FileDir != "" {
-		cfg.DataDir = conf.FileDir
-	}
-	if conf.DownloadRate != -1 {
-		cfg.DownloadRateLimiter = rate.NewLimiter(rate.Limit(conf.DownloadRate), 1<<20)
-	}
-	if conf.UploadRate != -1 {
-		cfg.UploadRateLimiter = rate.NewLimiter(rate.Limit(conf.UploadRate), 256<<10)
-	}
-	return torrent.NewClient(cfg)
-}
-
-// NewTorrent ..
-func (ts *Ts) NewTorrent(r *http.Request, m metainfo.Magnet) (*T, error) {
-	t, err := ts.client.AddMagnet(m.String())
+// newTorrent ..
+func (app *App) newTorrent(request *http.Request, magnet metainfo.Magnet) (*T, error) {
+	torrent, err := app.client.AddMagnet(magnet.String())
 	if err != nil {
 		return nil, err
 	}
 	// not important yet
-	t.SetMaxEstablishedConns(conf.Nodes)
+	torrent.SetMaxEstablishedConns(conf.Nodes)
 
 	select {
-	case <-t.GotInfo():
+	case <-torrent.GotInfo():
 		// continue...
-	case <-r.Context().Done():
-		t.Drop()
+	case <-request.Context().Done():
+		torrent.Drop()
 		return nil, errors.New("request ctx abort")
 	case <-time.After(time.Minute):
-		t.Drop()
-		t.Closed()
+		torrent.Drop()
+		torrent.Closed()
 		return nil, errors.New("torrent timeout")
 	}
 
 	return &T{
-		Torrent:  t,
-		ID:       m.InfoHash.String(),
+		Torrent:  torrent,
+		ID:       magnet.InfoHash.String(),
 		Activity: time.Now(),
 	}, nil
 }
 
 // Close ..
-func (t *T) Close() {
+func (t *T) close() {
 	t.Drop()
 	<-t.Closed()
-	time.Sleep(time.Second)
 
 	// remove subtitles
 	for _, file := range t.Subs {
@@ -108,39 +88,14 @@ func (t *T) Close() {
 }
 
 // Largest ..
-func (t *T) Largest() *torrent.File {
+func (t *T) LargestFile() *torrent.File {
 	files := t.Files()
 	sort.Slice(files, func(i, j int) bool { return files[i].Length() > files[j].Length() })
 	return files[0]
 }
 
-func (t *T) activityCtx(r *http.Request) {
-	go func() {
-		t.Lock()
-		t.Conn++
-		t.Activity = time.Now()
-		t.Unlock()
-
-		for {
-			select {
-			case <-r.Context().Done():
-				t.Lock()
-				t.Conn--
-				t.Unlock()
-				return
-
-			default:
-				t.Lock()
-				t.Activity = time.Now()
-				t.Unlock()
-				time.Sleep(time.Second)
-			}
-		}
-	}()
-}
-
-// AddSubtitles ..
-func (t *T) AddSubtitles(lang []string) error {
+// addSubtitles ..
+func (t *T) addSubtitles(lang []string) error {
 	// tr := t.Largest().NewReader()
 	// defer tr.Close()
 	// hash, err := readHash(tr, 64)
@@ -150,7 +105,7 @@ func (t *T) AddSubtitles(lang []string) error {
 	// t.Subs = append(t.Subs, subDBdl(hash, lang)...)
 	// }
 	// // download sub function
-	t.Subs = append(t.Subs, t.FindSubInTorrent()...)
+	t.Subs = append(t.Subs, t.findSubtitles()...)
 
 	if len(t.Subs) == 0 {
 		return errors.New("not subtitles found")
@@ -159,8 +114,8 @@ func (t *T) AddSubtitles(lang []string) error {
 	return nil
 }
 
-// FindSubInTorrent
-func (t *T) FindSubInTorrent() []Subtitle {
+// FindSubtitles ..
+func (t *T) findSubtitles() []Subtitle {
 	var subs []Subtitle
 
 	for _, f := range t.Torrent.Files() {
@@ -171,16 +126,14 @@ func (t *T) FindSubInTorrent() []Subtitle {
 			f.Download()
 			file := filepath.Join(conf.FileDir, f.Path())
 
-			for {
+			// Wait for the subtitle file to be created and have content
+			maxRetries := 10
+			for i := 0; i < maxRetries; i++ {
 				fi, err := os.Stat(file)
-				if err != nil {
-					goto SLEEP
-				}
-				if fi.Size() > 0 {
+				if err == nil && fi.Size() > 0 {
 					break
 				}
-			SLEEP:
-				time.Sleep(200 * time.Microsecond)
+				time.Sleep(500 * time.Millisecond)
 			}
 
 			if ext == ".srt" {
@@ -204,4 +157,30 @@ func (t *T) FindSubInTorrent() []Subtitle {
 	}
 
 	return subs
+}
+
+// TrackActivity ..
+func (t *T) TrackActivity(r *http.Request) {
+	t.Lock()
+	t.Conn++
+	t.Activity = time.Now()
+	t.Unlock()
+
+	go func() {
+		for {
+			select {
+			case <-r.Context().Done():
+				t.Lock()
+				t.Conn--
+				t.Unlock()
+				return
+
+			default:
+				t.Lock()
+				t.Activity = time.Now()
+				t.Unlock()
+				time.Sleep(time.Second)
+			}
+		}
+	}()
 }

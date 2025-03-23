@@ -18,16 +18,12 @@ const (
 	msgNoresult // 3
 )
 
-// {{range $k, $v := .Ts}}
-// {{$v.Conn}}		{{$k}}
-// {{end}}
-
 var (
-	tplIndex = template.Must(template.ParseFiles("www/index.html"))
-	tplPlay  = template.Must(template.ParseFiles("www/play.html"))
+	tmplIndex = template.Must(template.ParseFiles("www/index.html"))
+	tmplPlay  = template.Must(template.ParseFiles("www/play.html"))
 
 	// stats page
-	tplStats = template.Must(template.New("stats").Parse(`
+	tmplStats = template.Must(template.New("stats").Parse(`
 	Boot    {{.Time}}
 	Visits  {{.Visits}}
 	Streams {{.Streams}}
@@ -43,7 +39,7 @@ var (
 	boot    = time.Now()
 	visits  int
 	streams int
-	hist    []History
+	history []History
 )
 
 // History for stats
@@ -64,11 +60,11 @@ func stats(w http.ResponseWriter, r *http.Request) {
 		Time:    boot,
 		Visits:  visits,
 		Streams: streams,
-		Ts:      ts.m,
-		History: hist,
+		Ts:      app.torrents,
+		History: history,
 	}
 
-	tplStats.Execute(w, info)
+	tmplStats.Execute(w, info)
 }
 
 func index(w http.ResponseWriter, r *http.Request) {
@@ -97,81 +93,89 @@ func index(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	tplIndex.Execute(w, data)
+	tmplIndex.Execute(w, data)
+}
+
+func processMagnetURI(r *http.Request) (string, metainfo.Magnet, error) {
+	// Check query
+	raw, err := url.QueryUnescape(r.URL.RawQuery)
+	if err != nil {
+		return "", metainfo.Magnet{}, err
+	}
+	// Parse query
+	m, err := metainfo.ParseMagnetUri(raw)
+	if err != nil {
+		return "", metainfo.Magnet{}, err
+	}
+	return raw, m, nil
 }
 
 func play(w http.ResponseWriter, r *http.Request) {
 	streams++ // stats
 
-	// check query
-	raw, err := url.QueryUnescape(r.URL.RawQuery)
-	if err != nil {
-		log.Println("error url query:", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	// parse query
-	m, err := metainfo.ParseMagnetURI(raw)
+	// Process magnet URI
+	uri, magnet, err := processMagnetURI(r)
 	if err != nil {
 		log.Println("error magnet uri:", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	// load torrent
-	t, err := ts.Load(r, m)
+
+	// Load torrent
+	torrent, err := app.Add(r, magnet)
 	if err != nil {
-		log.Printf("error loading %s: %v\n", m.InfoHash.String(), err)
+		log.Printf("error loading %s: %v\n", magnet.InfoHash.String(), err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// data to send to play
+	// Data to send to play
 	var data = struct {
 		Title       string
 		URI         string
 		ContentType string
 		Subs        []Subtitle
 	}{
-		Title:       m.DisplayName,
-		URI:         raw,
-		ContentType: videoMIME(t.Largest().Path()),
-		Subs:        t.Subs,
+		Title:       magnet.DisplayName,
+		URI:         uri,
+		ContentType: videoMIME(torrent.LargestFile().Path()),
+		Subs:        torrent.Subs,
 	}
 
-	tplPlay.Execute(w, data)
+	tmplPlay.Execute(w, data)
 }
 
 func stream(w http.ResponseWriter, r *http.Request) {
-	// check query
-	raw, err := url.QueryUnescape(r.URL.RawQuery)
-	if err != nil {
-		log.Println("error url query:", err)
-		http.Redirect(w, r, "/", 200)
-		return
-	}
-	// parse query
-	m, err := metainfo.ParseMagnetURI(raw)
+	// Process magnet URI
+	_, magnet, err := processMagnetURI(r)
 	if err != nil {
 		log.Println("error magnet uri:", err)
 		http.Redirect(w, r, "/", 200)
 		return
 	}
-	// get torrrent
-	t, ok := ts.Get(m.InfoHash.String())
+
+	// Get torrent
+	torrent, ok := app.Get(magnet.InfoHash.String())
 	if !ok {
 		log.Println("error get torrent:", err)
 		http.Redirect(w, r, "/", 200)
 		return
 	}
-	// set activity
-	t.activityCtx(r)
 
-	tf := t.Largest()
-	tr := tf.NewReader()
-	// tr.SetResponsive()	// test without this
-	defer tr.Close()
+	// Set activity
+	torrent.TrackActivity(r)
 
+	largestFile := torrent.LargestFile()
+	reader := largestFile.NewReader()
+	reader.SetResponsive()
+	defer reader.Close()
+
+	// Set appropriate headers for streaming
 	w.Header().Set("Connection", "keep-alive")
-	w.Header().Add("Content-Type", videoMIME(tf.Path()))
-	http.ServeContent(w, r, t.Name(), time.Time{}, tr)
+	w.Header().Set("Content-Type", videoMIME(largestFile.Path()))
+	w.Header().Set("Accept-Ranges", "bytes")
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+
+	// Use ServeContent to handle range requests properly
+	http.ServeContent(w, r, torrent.Name(), time.Time{}, reader)
 }

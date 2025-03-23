@@ -15,7 +15,7 @@ var tpb = &TorrentSite{
 	Name:      "The Piratebay",
 	Scheme:    "https",
 	URL:       "thepiratebay0.org",
-	UserAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/53.0.2785.143 Safari/537.36",
+	UserAgent: "",
 }
 
 func tpbSearch(title, category string, ch chan *Torrent) error {
@@ -41,7 +41,7 @@ func tpbSearch(title, category string, ch chan *Torrent) error {
 	if err != nil {
 		return err
 	}
-	req.Header.Set("User-Agent", tpb.UserAgent)
+
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
@@ -80,17 +80,17 @@ func tpbSearch(title, category string, ch chan *Torrent) error {
 			}
 
 			// make torrent
-			var t = new(Torrent)
-			t.MagnetURI = magnet
-			t.ID = hash
-			t.Title = s.Find("div.detName a").Text()
-			t.Seeders, _ = strconv.Atoi(s.Children().Eq(2).Text())
-			t.Leechers, _ = strconv.Atoi(s.Children().Eq(3).Text())
-			t.Size = s.Find("font.detDesc").Text()
-			t.SiteID = tpb.Name
+			var torrent = new(Torrent)
+			torrent.MagnetURI = magnet
+			torrent.ID = hash
+			torrent.Title = s.Find("div.detName a").Text()
+			torrent.Seeders, _ = strconv.Atoi(s.Children().Eq(2).Text())
+			torrent.Leechers, _ = strconv.Atoi(s.Children().Eq(3).Text())
+			torrent.Size = s.Find("font.detDesc").Text()
+			torrent.SiteID = tpb.Name
 
 			// send torrent on channel
-			ch <- t
+			ch <- torrent
 		}()
 	})
 

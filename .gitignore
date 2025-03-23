@@ -1,4 +1,5 @@
-torrents/
-tmp/
+torrentstream
 app
+tmp/
+.cursor/
 

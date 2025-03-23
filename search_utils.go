@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -17,8 +17,24 @@ import (
 
 const mb = 16 << 16
 
+// List of user agents to rotate through
+var userAgents = []string{
+	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Safari/605.1.15",
+	"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0",
+	"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36",
+	"Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1",
+	"Mozilla/5.0 (iPad; CPU OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1",
+}
+
+// client with rotating user agent
 var client = &http.Client{
 	Transport: &http.Transport{
+		Proxy: func(req *http.Request) (*url.URL, error) {
+			// Set random user agent for all requests
+			req.Header.Set("User-Agent", GetRandomUserAgent())
+			return nil, nil
+		},
 		Dial: (&net.Dialer{
 			Timeout: 5 * time.Second,
 		}).Dial,
@@ -29,12 +45,17 @@ var client = &http.Client{
 	Timeout: 10 * time.Second,
 }
 
+// GetRandomUserAgent returns a random user agent from the list
+func GetRandomUserAgent() string {
+	return userAgents[time.Now().UnixNano()%int64(len(userAgents))]
+}
+
 // savetoFile debug store file
 func savetoFile(path string, data interface{}) error {
 	b := new(bytes.Buffer)
 	json.NewEncoder(b).Encode(data)
 
-	return ioutil.WriteFile(path, b.Bytes(), 0644)
+	return os.WriteFile(path, b.Bytes(), 0644)
 }
 
 func formatBytes(i int64) string {
@@ -135,4 +156,27 @@ func videoMIME(path string) string {
 	default:
 		return "application/octet-stream"
 	}
+}
+
+var trackers = []string{
+	"udp://open.demonii.com:1337/announce",
+	"udp://tracker.openbittorrent.com:80",
+	"udp://tracker.coppersurfer.tk:6969",
+	"udp://glotorrents.pw:6969/announce",
+	"udp://tracker.opentrackr.org:1337/announce",
+	"udp://torrent.gresille.org:80/announce",
+	"udp://p4p.arenabg.com:1337",
+	"udp://tracker.leechers-paradise.org:6969",
+}
+
+func addTrackers(magnet string) string {
+	if magnet == "" {
+		return magnet
+	}
+
+	for _, tracker := range trackers {
+		magnet += "&tr=" + tracker
+	}
+
+	return magnet
 }

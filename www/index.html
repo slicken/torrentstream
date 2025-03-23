@@ -1,173 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
 <head>
     <title>torrentstream.io</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link href="https://fonts.googleapis.com/css?family=Lato" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css?family=Poppins:400,600&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet">
 </head>
 <style>
-    *{margin: 0;box-sizing: border-box;}
-    html{font-family: 'Lato',sans-serif;overflow: auto;}
-    input:focus, textarea:focus, select:focus{outline: none;}
-    .nav{
+    * { margin: 0; box-sizing: border-box; }
+    html { font-family: 'Poppins', sans-serif; overflow: auto; background: #1a1a1a; color: #e0e0e0; }
+    input:focus, textarea:focus, select:focus { outline: none; }
+
+    .nav {
         width: 100%;
-        height: 50px;
-        top: 0;
-        left: 0;
+        height: 60px;
         display: flex;
-        flex-direction: row;
         justify-content: center;
-        color: whitesmoke;
-        background: rgb(35,35,35);
-        box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2),0 6px 20px 0 rgba(0,0,0,0.19);
         align-items: center;
+        background: linear-gradient(135deg, #2a2a2a, #1a1a1a);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+        position: sticky;
+        top: 0;
+        z-index: 10;
     }
-    .search-bar{
-        position: relative;
-        display: block;
-        overflow: hidden;
-        width: 840px;
+    .search-bar {
+        display: flex;
+        align-items: center;
+        width: 900px;
+        padding: 0 10px;
     }
-    .search-bar input{
-        position: inherit;
-        padding-left: 15px;
-        width: 440px;
-        height: 30px;
-        border: 1px solid rgb(50,50,50);
-        border-radius: 2px;
-        background: rgb(25,25,25);
-        color: rgb(175,175,175);
-        font-size: 10pt;
+    .search-bar input {
+        width: 500px;
+        height: 40px;
+        padding: 0 15px;
+        border: 1px solid #333333;
+        border-radius: 20px 0 0 20px;
+        background: #252525;
+        color: #e0e0e0;
+        font-size: 14px;
+        transition: all 0.3s ease;
     }
-    .search-bar button, select{
-        position: inherit;
+    .search-bar input:focus {
+        border-color: #404040;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+    }
+    .search-bar select, .search-bar button {
+        height: 40px;
+        border: 1px solid #333333;
+        background: #252525;
+        color: #e0e0e0;
+        font-size: 14px;
+        transition: all 0.3s ease;
+    }
+    .search-bar select {
+        width: 100px;
+        padding: 0 10px;
+        border-left: none;
+    }
+    .search-bar button {
         width: 60px;
+        border-radius: 0 20px 20px 0;
+        border-left: none;
+        cursor: pointer;
+    }
+    .search-bar button:hover, .search-bar select:hover {
+        background: #2a2a2a;
+    }
+    #logo {
         height: 30px;
-        /* border: 1px solid rgb(26,16,16); */
-        border: 1px solid rgb(50,50,50);
-        border-radius: 2px;
-        background: rgb(50,50,50);
-        color: rgb(150,150,150);
-        font-size: 10pt;
+        margin-right: 15px;
+        transition: transform 0.3s ease;
     }
-    .search-bar:hover button:hover, select:hover{
-        color: rgb(225,225,225);
-    }
-    #logo{
-        margin-right: 10px;
-        height: 26px;
-        width: auto;
+    #logo:hover {
+        transform: scale(1.1);
     }
 
     .movie {
-        height: 320px;
-        margin-top: 20px;
         display: flex;
         justify-content: center;
+        margin: 30px 0;
+        padding: 20px;
+        transition: all 0.3s ease;
+        align-items: center;
+    }
+    .movie:hover {
+        box-shadow: 0 -2px 7px rgba(0, 0, 0, 0.4), 0 10px 20px rgba(0, 0, 0, 0.4);
     }
 
-    .poster{
+    .poster {
         position: relative;
-        width: 214px;
-        height: 320px;
+        width: 220px;
+        height: 330px;
+        border-radius: 8px;
+        overflow: hidden;
+        margin-right: 20px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
     }
-    .poster img{
-        width:100%;
-        height:100%;
-    }
-    .play-button{
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        opacity: 0.0;
-        padding: 90 40 90 40;
-    }
-    .play-button img{
-        width:100%;
-        height:100%;
-    }
-    .poster:hover .play-button{opacity:0.6; transition: 0.3s;}
-
-    .content{
-        width: 428px;
-        display: flex;
-        flex-direction: column;
-        background: whitesmoke;
-    }
-    .content .info{
-        flex: 70%;
-    }
-    .content .torrent{
+    .poster img {
         width: 100%;
-        padding: 5px;
-        /* background: rgba(0,0,0,0.1); */
-        font-size: 9pt;
-        word-wrap: break-word;
+        height: 100%;
+        object-fit: cover;
+    }
+    .download-button {
+        position: absolute;
+        bottom: 10px;
+        left: 10px;
+        padding: 6px 12px;
+        background: #404040;
+        color: #ffffff;
+        border: none;
+        border-radius: 4px;
+        font-size: 10px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    .download-button:hover {
+        background: #505050;
+        transform: translateY(-2px);
+    }
+    .play-button {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        opacity: 0;
+        width: 80px;
+        height: 80px;
+        transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+    .poster:hover .play-button {
+        opacity: 0.7;
+        transform: translate(-50%, -50%) scale(1.1);
     }
 
-    .info > * {
-        padding: 5px;
+    .content {
+        width: 450px;
+        padding: 15px;
     }
+    .info > * { padding: 8px 0; }
     .info-title {
-        font-size: 16pt;
-        font-weight: bold;
+        font-size: 22px;
+        font-weight: 600;
+        color: #e0e0e0;
     }
     .info-year {
         float: right;
+        color: #888888;
     }
     .info-genre {
-        font-size: 10pt;
-    }
-    .info-rating {
-        padding-left: 15px;
-        font-weight: bold;
+        font-size: 12px;
+        color: #999999;
     }
     .info-rating .imdbscore {
-        color: orange;
+        color: #ffcc00;
         font-size: 18px;
     }
     .info-rating .metascore {
         margin-left: 15px;
-        color: white;
-        background: #61c74f;
-        font-size: 15px;
+        padding: 2px 8px;
+        background: #404040;
+        color: #ffffff;
+        border-radius: 4px;
+        font-size: 14px;
     }
     .info-actors {
-        font-size: 10pt;
+        font-size: 12px;
+        color: #999999;
     }
+    .torrent {
+        font-size: 10px;
+        padding: 10px;
+        background: #252525;
+        border-radius: 6px;
+        margin-top: 10px;
+        border: 1px solid #333333;
+    }
+
     .msgbox {
-        margin: 20px 0;
+        margin: 30px 0;
         display: flex;
         justify-content: center;
     }
-    .msgbox div{
-        padding:20px;
-        background: whitesmoke;
-        border-radius: 12px;
-        width: 642px;
+    .msgbox div {
+        padding: 25px;
+        background: #252525;
+        border-radius: 15px;
+        width: 700px;
+        text-align: left;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
     }
-    @media screen and (max-width: 780px){
-        #logo{display: none;}
-        .search-bar{width: 590px;}
-        .movie{margin: 4px 0;}
-        .content{width: 100%;}
+
+    @media screen and (max-width: 780px) {
+        .search-bar { width: 100%; padding: 0 5px; }
+        .search-bar input { width: 100%; border-radius: 20px; border: 1px solid #404050; }
+        .search-bar select, .search-bar button { border-radius: 20px; margin-left: 5px; border: 1px solid #404050; }
+        #logo { display: none; }
+        .movie { flex-direction: column; align-items: center; }
+        .content { width: 100%; margin-top: 20px; }
+        .poster { margin-right: 0; margin-bottom: 15px; }
+        .download-button { bottom: 15px; left: 15px; }
     }
 </style>
-    
+
 <div class="nav">
-    <div>
-        <form class="search-bar" method="POST">
-            <img id="logo" src="/www/ts.svg" align="top">
-            <input type="text" name="search" placeholder="Search torrent..." autocomplete="off" required>
-            <select name="category">
-                <option value="movie">Movie</option>
-                <option value="tv">TV</option>
-            </select>
-            <button class="icon"><i class="fa fa-search"></i></button>
-        </form>
-    </div>
+    <form class="search-bar" method="POST">
+        <img id="logo" src="/www/ts.svg" align="top">
+        <input type="text" name="search" placeholder="Search torrent..." autocomplete="off" required>
+        <select name="category">
+            <option value="movie">Movie</option>
+            <option value="tv">TV</option>
+        </select>
+        <button class="icon"><i class="fa fa-search"></i></button>
+    </form>
 </div>
 
 {{if .Msg}}
@@ -177,7 +222,6 @@
         welcome to torrentstream.io<br><br>
         we make meta-search on various torrent sites, plots results you can stream directly in browser.<br><br>
         your browser will playback the content. be sure to use a browser that supports a wide range of videofiles.<br><br>
-
         2019-03-09: subtitles for "en" "es" are automaticly added, if found on external sub database's.<br>
     </div>
 
@@ -193,7 +237,6 @@
     {{end}}
 </div>
 {{end}}
-
 
 {{if .T}}
 {{range .T}}
