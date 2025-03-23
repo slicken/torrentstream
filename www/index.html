@@ -59,29 +59,7 @@
         position: sticky;
         top: 0;
         z-index: 10;
-    }
-
-    .theme-toggle {
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        background: var(--input-bg);
-        border: 1px solid var(--input-border);
-        color: var(--text-color);
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: all 0.3s ease;
-        z-index: 100;
-    }
-
-    .theme-toggle:hover {
-        transform: scale(1.1);
-        box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+        position: relative;
     }
 
     .search-bar {
@@ -89,6 +67,8 @@
         align-items: center;
         width: 900px;
         padding: 0 10px;
+        position: relative;
+        margin-right: 60px;
     }
     .search-bar input {
         width: 500px;
@@ -128,11 +108,47 @@
         background: var(--input-bg);
         filter: brightness(0.95);
     }
+    #logo {
+        height: 30px;
+        margin-right: 15px;
+        transition: transform 0.3s ease;
+    }
+    #logo:hover {
+        transform: scale(1.1);
+    }
+
+    .theme-toggle {
+        position: absolute;
+        right: 20px;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: var(--input-bg);
+        border: 1px solid var(--input-border);
+        color: var(--text-color);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s ease;
+        padding: 0;
+        min-width: 40px;
+        min-height: 40px;
+    }
+
+    .theme-toggle i {
+        font-size: 18px;
+    }
+
+    .theme-toggle:hover {
+        transform: scale(1.1);
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+    }
 
     .movie {
         display: flex;
         justify-content: center;
-        margin: 30px 0;
+        margin: 15px 0;
         padding: 20px;
         transition: all 0.3s ease;
         align-items: center;
@@ -268,11 +284,10 @@
         </select>
         <button class="icon"><i class="fa fa-search"></i></button>
     </form>
+    <button type="button" class="theme-toggle" onclick="toggleTheme()">
+        <i class="fa fa-moon-o"></i>
+    </button>
 </div>
-
-<button class="theme-toggle" onclick="toggleTheme()">
-    <i class="fa fa-moon-o"></i>
-</button>
 
 <script>
 function toggleTheme() {
