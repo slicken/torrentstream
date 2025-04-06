@@ -1,0 +1,58 @@
+{
+  "_from": "videojs-hotkeys",
+  "_id": "videojs-hotkeys@0.2.22",
+  "_inBundle": false,
+  "_integrity": "sha512-sl/D6blI+SY40uD9OJBBUZB4PzV5g4xpfV2aPqzYgYiO1GEdXFAZKXWj80Hz2VEmJ8tXj5ToIbVq+t4v3ckvNw==",
+  "_location": "/videojs-hotkeys",
+  "_phantomChildren": {},
+  "_requested": {
+    "type": "tag",
+    "registry": true,
+    "raw": "videojs-hotkeys",
+    "name": "videojs-hotkeys",
+    "escapedName": "videojs-hotkeys",
+    "rawSpec": "",
+    "saveSpec": null,
+    "fetchSpec": "latest"
+  },
+  "_requiredBy": [
+    "#USER",
+    "/"
+  ],
+  "_resolved": "https://registry.npmjs.org/videojs-hotkeys/-/videojs-hotkeys-0.2.22.tgz",
+  "_shasum": "76f917b1a70e7bf9da5f7f8cd33d5a032c0284be",
+  "_spec": "videojs-hotkeys",
+  "_where": "/home/slicken/go/src/github.com/slicken/web",
+  "author": {
+    "name": "Chris Dougherty"
+  },
+  "bugs": {
+    "url": "https://github.com/ctd1500/videojs-hotkeys/issues"
+  },
+  "bundleDependencies": false,
+  "deprecated": false,
+  "description": "Adds more hotkey support to video.js",
+  "devDependencies": {
+    "grunt": "^1.0.1",
+    "grunt-contrib-clean": "^1.1.0",
+    "grunt-contrib-compress": "^1.4.3",
+    "grunt-contrib-copy": "^1.0.0",
+    "grunt-contrib-uglify": "^3.0.1",
+    "grunt-github-releaser2": "^0.1.1",
+    "time-grunt": "^1.4.0"
+  },
+  "homepage": "https://github.com/ctd1500/videojs-hotkeys",
+  "keywords": [
+    "videojs",
+    "videojs-plugin",
+    "hotkeys"
+  ],
+  "license": "Apache-2.0",
+  "main": "videojs.hotkeys.min.js",
+  "name": "videojs-hotkeys",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ctd1500/videojs-hotkeys.git"
+  },
+  "version": "0.2.22"
+}

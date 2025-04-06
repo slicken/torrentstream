@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <title>torrentstream.io</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://fonts.googleapis.com/css?family=Poppins:400,600&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet">
+</head>
+<style>
+    :root[data-theme="dark"] {
+        --bg-color: #1a1a1a;
+        --text-color: #e0e0e0;
+        --nav-bg: linear-gradient(135deg, #2a2a2a, #1a1a1a);
+        --input-bg: #252525;
+        --input-border: #333333;
+        --input-focus-border: #404040;
+        --movie-bg: transparent;
+        --movie-hover-shadow: rgba(0, 0, 0, 0.4);
+        --torrent-bg: #252525;
+        --torrent-border: #333333;
+        --msgbox-bg: #252525;
+        --msgbox-shadow: rgba(0, 0, 0, 0.4);
+    }
+
+    :root[data-theme="light"] {
+        --bg-color: #f5f5f5;
+        --text-color: #333333;
+        --nav-bg: linear-gradient(135deg, #ffffff, #f5f5f5);
+        --input-bg: #ffffff;
+        --input-border: #dddddd;
+        --input-focus-border: #999999;
+        --movie-bg: #ffffff;
+        --movie-hover-shadow: rgba(0, 0, 0, 0.1);
+        --torrent-bg: #ffffff;
+        --torrent-border: #dddddd;
+        --msgbox-bg: #ffffff;
+        --msgbox-shadow: rgba(0, 0, 0, 0.1);
+    }
+
+    * { margin: 0; box-sizing: border-box; }
+    html { 
+        font-family: 'Poppins', sans-serif; 
+        overflow: auto; 
+        background: var(--bg-color); 
+        color: var(--text-color);
+        transition: background-color 0.3s ease, color 0.3s ease;
+    }
+    input:focus, textarea:focus, select:focus { outline: none; }
+
+    .nav {
+        width: 100%;
+        height: 60px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background: var(--nav-bg);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        position: relative;
+    }
+
+    .search-bar {
+        display: flex;
+        align-items: center;
+        width: 900px;
+        padding: 0 10px;
+        position: relative;
+        margin-right: 60px;
+    }
+    .search-bar input {
+        width: 500px;
+        height: 40px;
+        padding: 0 15px;
+        border: 1px solid var(--input-border);
+        border-radius: 20px 0 0 20px;
+        background: var(--input-bg);
+        color: var(--text-color);
+        font-size: 14px;
+        transition: all 0.3s ease;
+    }
+    .search-bar input:focus {
+        border-color: var(--input-focus-border);
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+    .search-bar select, .search-bar button {
+        height: 40px;
+        border: 1px solid var(--input-border);
+        background: var(--input-bg);
+        color: var(--text-color);
+        font-size: 14px;
+        transition: all 0.3s ease;
+    }
+    .search-bar select {
+        width: 100px;
+        padding: 0 10px;
+        border-left: none;
+    }
+    .search-bar button {
+        width: 60px;
+        border-radius: 0 20px 20px 0;
+        border-left: none;
+        cursor: pointer;
+    }
+    .search-bar button:hover, .search-bar select:hover {
+        background: var(--input-bg);
+        filter: brightness(0.95);
+    }
+    #logo {
+        height: 30px;
+        margin-right: 15px;
+        transition: transform 0.3s ease;
+    }
+    #logo:hover {
+        transform: scale(1.1);
+    }
+
+    .theme-toggle {
+        position: absolute;
+        right: 20px;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: var(--input-bg);
+        border: 1px solid var(--input-border);
+        color: var(--text-color);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s ease;
+        padding: 0;
+        min-width: 40px;
+        min-height: 40px;
+    }
+
+    .theme-toggle i {
+        font-size: 18px;
+    }
+
+    .theme-toggle:hover {
+        transform: scale(1.1);
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+    }
+
+    .movie {
+        display: flex;
+        justify-content: center;
+        margin: 15px 0;
+        padding: 20px;
+        transition: all 0.3s ease;
+        align-items: center;
+        background: var(--movie-bg);
+        border-radius: 10px;
+    }
+    .movie:hover {
+        box-shadow: 0 -2px 7px var(--movie-hover-shadow), 0 10px 20px var(--movie-hover-shadow);
+    }
+
+    .poster {
+        position: relative;
+        width: 220px;
+        height: 330px;
+        border-radius: 8px;
+        overflow: hidden;
+        margin-right: 20px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    }
+    .poster img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    .download-button {
+        position: absolute;
+        bottom: 10px;
+        left: 10px;
+        padding: 6px 12px;
+        background: #404040;
+        color: #ffffff;
+        border: none;
+        border-radius: 4px;
+        font-size: 10px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    .download-button:hover {
+        background: #505050;
+        transform: translateY(-2px);
+    }
+    .play-button {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        opacity: 0;
+        width: 80px;
+        height: 80px;
+        transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+    .poster:hover .play-button {
+        opacity: 0.7;
+        transform: translate(-50%, -50%) scale(1.1);
+    }
+
+    .content {
+        width: 450px;
+        padding: 15px;
+    }
+    .info > * { padding: 8px 0; }
+    .info-title {
+        font-size: 22px;
+        font-weight: 600;
+        color: #e0e0e0;
+    }
+    .info-year {
+        float: right;
+        color: #888888;
+    }
+    .info-genre {
+        font-size: 12px;
+        color: #999999;
+    }
+    .info-rating .imdbscore {
+        color: #ffcc00;
+        font-size: 18px;
+    }
+    .info-rating .metascore {
+        margin-left: 15px;
+        padding: 2px 8px;
+        background: #404040;
+        color: #ffffff;
+        border-radius: 4px;
+        font-size: 14px;
+    }
+    .info-actors {
+        font-size: 12px;
+        color: #999999;
+    }
+    .torrent {
+        font-size: 10px;
+        padding: 10px;
+        background: var(--torrent-bg);
+        border-radius: 6px;
+        margin-top: 10px;
+        border: 1px solid var(--torrent-border);
+    }
+
+    .msgbox {
+        margin: 30px 0;
+        display: flex;
+        justify-content: center;
+    }
+    .msgbox div {
+        padding: 25px;
+        background: var(--msgbox-bg);
+        border-radius: 15px;
+        width: 700px;
+        text-align: left;
+        box-shadow: 0 4px 15px var(--msgbox-shadow);
+    }
+
+    @media screen and (max-width: 780px) {
+        .search-bar { width: 100%; padding: 0 5px; }
+        .search-bar input { width: 100%; border-radius: 20px; border: 1px solid #404050; }
+        .search-bar select, .search-bar button { border-radius: 20px; margin-left: 5px; border: 1px solid #404050; }
+        #logo { display: none; }
+        .movie { flex-direction: column; align-items: center; }
+        .content { width: 100%; margin-top: 20px; }
+        .poster { margin-right: 0; margin-bottom: 15px; }
+        .download-button { bottom: 15px; left: 15px; }
+    }
+</style>
+
+<div class="nav">
+    <form class="search-bar" method="POST">
+        <img id="logo" src="/www/ts.svg" align="top">
+        <input type="text" name="search" placeholder="Search torrent..." autocomplete="off" required>
+        <select name="category">
+            <option value="movie">Movie</option>
+            <option value="tv">TV</option>
+        </select>
+        <button class="icon"><i class="fa fa-search"></i></button>
+    </form>
+    <button type="button" class="theme-toggle" onclick="toggleTheme()">
+        <i class="fa fa-moon-o"></i>
+    </button>
+</div>
+
+<script>
+function toggleTheme() {
+    const html = document.documentElement;
+    const currentTheme = html.getAttribute('data-theme');
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    
+    html.setAttribute('data-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
+    
+    // Update icon
+    const icon = document.querySelector('.theme-toggle i');
+    icon.className = newTheme === 'dark' ? 'fa fa-moon-o' : 'fa fa-sun-o';
+}
+
+// Check for saved theme preference
+document.addEventListener('DOMContentLoaded', () => {
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    
+    // Set initial icon
+    const icon = document.querySelector('.theme-toggle i');
+    icon.className = savedTheme === 'dark' ? 'fa fa-moon-o' : 'fa fa-sun-o';
+});
+</script>
+
+{{if .Msg}}
+<div class="msgbox">
+    {{if (eq .Msg 1)}}
+    <div style="margin: 100px 0px">
+        welcome to torrentstream.io<br><br>
+        we make meta-search on various torrent sites, plots results you can stream directly in browser.<br><br>
+        your browser will playback the content. be sure to use a browser that supports a wide range of videofiles.<br><br>
+        2019-03-09: subtitles for "en" "es" are automaticly added, if found on external sub database's.<br>
+    </div>
+
+    {{else if (eq .Msg 2)}}
+    <div>
+        found {{len .T}} results for "{{.Search}}" ({{.Category}})<br>
+    </div>
+
+    {{else if (eq .Msg 3)}}
+    <div style="margin: 100px 0px">
+        no results where found. please try again!<br>
+    </div>
+    {{end}}
+</div>
+{{end}}
+
+{{if .T}}
+{{range .T}}
+<div class="movie">
+    <div class="poster">
+        <a href='/play?{{.MagnetURI}}'>
+            {{if .Info.Poster}}
+            <img src={{.Info.Poster}}>
+            {{else}}
+            <img src="/www/no-poster.png">
+            {{end}}
+            <img class="play-button" src="/www/play.png" />
+        </a>
+    </div>
+    
+    <div class="content">
+        <div class="info">
+            {{if .Info.Poster}}
+            <div class="info-year">({{.Info.Year}})</div>
+            <div class="info-title">{{.Info.Title}}</div>
+            <div class="info-genre">{{.Info.Runtime}} | {{.Info.Genre}}</div>
+            <div class="info-rating"><span class="imdbscore"><i class="fa fa-star"></i></span> {{.Info.ImdbRating}}<span class="metascore">{{.Info.Metascore}}</span> Metascore</div>
+            <div>{{.Info.Plot}}</div>
+            <div class="info-actors">Director: {{.Info.Director}}<br>Actors: {{.Info.Actors}}</div>
+            {{end}}
+        </div>
+        <div class="torrent">
+            <p><b>{{.Title}}</b></p>
+            <p>{{.SiteID}} <span style="float:right;">{{.Size}}</span></p>
+            <p>Seeders: {{.Seeders}}<span style="float:right;">Leechers: {{.Leechers}}</span></p>
+        </div>
+    </div>
+</div>
+{{end}}
+{{end}}

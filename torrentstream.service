@@ -1,0 +1,16 @@
+[Unit]
+Description=TorrentStream Service
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/ubuntu/torrentstream
+ExecStart=/home/ubuntu/torrentstream/torrentstream
+Restart=always
+RestartSec=10
+User=ubuntu
+Group=ubuntu
+Environment=OMDB_KEY=1d0bcf4c
+
+[Install]
+WantedBy=multi-user.target 
