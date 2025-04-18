@@ -4,62 +4,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link href="/www/videojs/video-js.css" rel="stylesheet">
     <script src="/www/videojs/video.min.js"></script>
-    <script src="/www/videojs-hotkeys/videojs.hotkeys.js"></script>  
+    <script src="/www/videojs-hotkeys/videojs.hotkeys.js"></script>
 </head>
 <style>
+    /* CSS styles remain the same */
     *{margin: 0;box-sizing: border-box;}
     html{font-family: 'Lato',sans-serif;overflow: auto;background:black;}
     input:focus, textarea:focus, select:focus{outline: none;}
-    .video-container {
-        width: 100%;
-        height: 100vh;
-    }
-    .video-js .vjs-control-bar { 
-        display: -webkit-box;
-        display: -webkit-flex;
-        display: -ms-flexbox;
-        display: flex;
-    }
-    .video-js {
-        font-size: 18px;
-        color: whitesmoke;
-    }
-    .vjs-default-skin .vjs-big-play-button {
-        font-size: 3em;
-        line-height: 2em;
-        height: 2em;
-        width: 2em;
-        border: 0;
-        border-radius: 1em;
-        left: 50%;
-        top: 50%;
-        margin-left: -(2em / 2);
-        margin-top: -(2em / 2);   
-    }
-    .video-js .vjs-control-bar,
-    .video-js .vjs-big-play-button,
-    .video-js .vjs-menu-button .vjs-menu-content {
-        background-color: #222;
-        /*transparent*/
-        background-color: rgba(22,22,22, 0);
-    }
-    .video-js .vjs-slider {
-        background-color: lighten(22,22,22, 33%);
-        background-color: rgba(lighten(22,22,22, 33%), 0.5);
-    }
-    .video-js .vjs-volume-level,
-    .video-js .vjs-play-progress,
-    .video-js .vjs-slider-bar {
-        background: whitesmoke;
-    }
-    .video-js .vjs-load-progress {
-        background: lighten(lighten(22,22,22, 33%), 25%);
-        background: rgba(lighten(22,22,22, 33%), 0.5);
-    }
-    .video-js .vjs-load-progress div {
-        background: lighten(lighten(22,22,22, 33%), 50%);
-        background: rgba(lighten(22,22,22, 33%), 0.75);
-    }
+    .video-container { width: 100%; height: 100vh; }
+    .video-js .vjs-control-bar { display: -webkit-box; display: -webkit-flex; display: -ms-flexbox; display: flex; }
+    .video-js { font-size: 18px; color: whitesmoke; }
+    .vjs-default-skin .vjs-big-play-button { font-size: 3em; line-height: 2em; height: 2em; width: 2em; border: 0; border-radius: 1em; left: 50%; top: 50%; margin-left: -(2em / 2); margin-top: -(2em / 2); }
+    .video-js .vjs-control-bar, .video-js .vjs-big-play-button, .video-js .vjs-menu-button .vjs-menu-content { background-color: #222; background-color: rgba(22,22,22, 0); }
+    .video-js .vjs-slider { background-color: lighten(22,22,22, 33%); background-color: rgba(lighten(22,22,22, 33%), 0.5); }
+    .video-js .vjs-volume-level, .video-js .vjs-play-progress, .video-js .vjs-slider-bar { background: whitesmoke; }
+    .video-js .vjs-load-progress { background: lighten(lighten(22,22,22, 33%), 25%); background: rgba(lighten(22,22,22, 33%), 0.5); }
+    .video-js .vjs-load-progress div { background: lighten(lighten(22,22,22, 33%), 50%); background: rgba(lighten(22,22,22, 33%), 0.75); }
 </style>
 
 <video-js id="video" class="video-js vjs-default-skin vjs-fill"
@@ -69,7 +29,7 @@
     preload="auto"
     autoplay
     playsinline
-    data-setup='{ 
+    data-setup='{
         "playbackRates": [0.25, 0.5, 1, 1.5, 2],
         "autoplay": true,
         "muted": false,
@@ -100,159 +60,112 @@
 <script>
 var player = videojs('video');
 var retryCount = 0;
-var maxRetries = 5;
-var currentTime = 0;
+var maxRetries = 5; // Maximum number of retries on error
+var retryTimeout = 3000; // Wait 3 seconds before retrying on error
 
-// Save current time before error
-player.on('timeupdate', function() {
-    currentTime = player.currentTime();
-});
+// Function to attempt autoplay, handling browser restrictions
+function attemptAutoplay() {
+  console.log("Attempting initial autoplay...");
+  var playPromise = player.play();
 
-// Aggressive autoplay function
-function forcePlay() {
-    var playPromise = player.play();
-    if (playPromise !== undefined) {
-        playPromise.then(function() {
-            console.log("Video started playing");
-        }).catch(function(error) {
-            console.log("Play failed:", error);
-            // If autoplay fails, try with muted state
-            player.muted(true);
-            player.play().then(function() {
-                console.log("Video started playing (muted)");
-                // Try to unmute after a short delay
-                setTimeout(function() {
-                    player.muted(false);
-                    player.play();
-                }, 1000);
+  if (playPromise !== undefined) {
+    playPromise.then(function() {
+      // Autoplay started successfully (unmuted)
+      console.log("Autoplay started successfully (unmuted).");
+      player.muted(false); // Ensure unmuted if somehow started muted initially
+    }).catch(function(error) {
+      // Autoplay was prevented.
+      console.warn("Autoplay prevented:", error.name, error.message);
+      // Check if it's the common NotAllowedError
+      if (error.name === 'NotAllowedError') {
+        console.log("Attempting muted autoplay as fallback...");
+        player.muted(true); // Mute the player
+        var mutedPlayPromise = player.play(); // Try playing again (muted)
+        if (mutedPlayPromise !== undefined) {
+            mutedPlayPromise.then(function() {
+                console.log("Muted autoplay started successfully.");
+                // Optional: Try to unmute after a short delay. Might not work.
+                // setTimeout(function() {
+                //     console.log("Attempting to unmute...");
+                //     player.muted(false);
+                // }, 1500);
+            }).catch(function(mutedError) {
+                console.error("Muted autoplay also failed:", mutedError);
             });
-        });
-    }
+        }
+      } else {
+        // Log other potential play errors
+        console.error("Error during initial play attempt:", error);
+      }
+    });
+  } else {
+      // Handle browsers that don't return a promise from play() - less common now
+      console.log("player.play() did not return a promise. Autoplay might be inconsistent.");
+  }
 }
 
-// Handle video errors with better recovery
-player.on('error', function() {
-    var error = player.error();
-    console.log('Video Error:', error);
-    
-    // Save current time before recovery attempt
-    var lastTime = currentTime;
-    
-    // Handle specific error types
-    switch(error.code) {
-        case 1: // MEDIA_ERR_ABORTED
-            console.log('Playback aborted, attempting recovery...');
-            break;
-        case 2: // MEDIA_ERR_NETWORK
-            console.log('Network error, attempting recovery...');
-            break;
-        case 3: // MEDIA_ERR_DECODE
-            console.log('Decode error, attempting recovery...');
-            break;
-        case 4: // MEDIA_ERR_SRC_NOT_SUPPORTED
-            console.log('Format not supported, attempting recovery...');
-            break;
-        default:
-            console.log('Unknown error, attempting recovery...');
-    }
-    
-    if (retryCount < maxRetries) {
-        retryCount++;
-        console.log('Recovery attempt ' + retryCount + ' of ' + maxRetries);
-        
-        // Try to recover by reloading the video
-        setTimeout(function() {
-            // Try different formats in order of preference
-            var formats = [
-                { type: 'video/mp4', src: '/stream?{{.URI}}' },
-                { type: 'video/webm', src: '/stream?{{.URI}}' },
-                { type: 'video/ogg', src: '/stream?{{.URI}}' }
-            ];
-            
-            var currentFormat = formats[retryCount % formats.length];
-            console.log('Trying format:', currentFormat.type);
-            
-            player.src(currentFormat);
-            
-            // After source change, try to restore playback position
-            player.ready(function() {
-                if (lastTime > 0) {
-                    player.currentTime(lastTime);
-                }
-                player.play().catch(function(e) {
-                    console.log('Recovery play failed:', e);
-                });
-            });
-        }, 1000);
-    } else {
-        console.log('Max retries reached, attempting final recovery...');
-        // Final attempt with original format
-        player.src({
-            type: 'video/mp4',
-            src: '/stream?{{.URI}}'
-        });
-        retryCount = 0;
-    }
-});
+// ---- Player Event Listeners ----
 
-// Handle buffering with recovery
-player.on('waiting', function() {
-    console.log('Video buffering...');
-    // If buffering takes too long, try to recover
-    setTimeout(function() {
-        if (player.paused() && !player.seeking()) {
-            console.log('Buffering timeout, attempting recovery...');
-            player.src({
-                type: 'video/mp4',
-                src: '/stream?{{.URI}}'
-            });
-        }
-    }, 5000);
-});
-
-// Handle stalled playback
-player.on('stalled', function() {
-    console.log('Video stalled, attempting recovery...');
-    var lastTime = currentTime;
-    
-    player.src({
-        type: 'video/mp4',
-        src: '/stream?{{.URI}}'
-    });
-    
-    player.ready(function() {
-        if (lastTime > 0) {
-            player.currentTime(lastTime);
-        }
-        player.play().catch(function(e) {
-            console.log('Stalled recovery play failed:', e);
-        });
-    });
-});
-
-// Initialize player with better error handling
+// Listener for when the player is ready
 player.ready(function() {
-    // Set buffer settings for better playback
-    player.bufferSize(30);
-    
-    // Force play immediately
-    forcePlay();
-    
-    // Try to play on various events
-    player.on('loadeddata', forcePlay);
-    player.on('canplay', forcePlay);
-    player.on('play', function() {
-        console.log('Video playing');
-        retryCount = 0; // Reset retry count on successful play
-    });
-    
-    // Handle source changes
-    player.on('sourcechange', function() {
-        console.log('Source changed, forcing playback');
-        forcePlay();
-    });
+  console.log('Player is ready.');
+  // Attempt autoplay now that the player is ready
+  attemptAutoplay();
 });
 
+// Listener for playback successfully starting/resuming (resets error retry count)
+player.on('play', function() {
+  if (retryCount > 0) {
+    console.log('Playback resumed successfully after ' + retryCount + ' retries.');
+  }
+  // Reset retry counter on successful playback
+  retryCount = 0;
+});
+
+// Listener for errors (handles retries for network/decode issues)
+player.on('error', function() {
+  var error = player.error();
+  console.error('Video Error:', error);
+
+  // Check if the error is recoverable (Network or Decode) and if we haven't exceeded retries
+  if ((error.code === 2 || error.code === 3) && retryCount < maxRetries) {
+    retryCount++;
+    console.log('Network or Decode error detected. Attempting retry ' + retryCount + ' of ' + maxRetries + ' in ' + (retryTimeout / 1000) + ' seconds...');
+    var lastTime = player.currentTime();
+
+    setTimeout(function() {
+      console.log('Retrying: Reloading source...');
+      player.load(); // Reload the current source
+
+      player.one('loadedmetadata', function() {
+          console.log('Retrying: Metadata loaded. Seeking to ' + lastTime);
+          if (lastTime > 0) {
+             // Small delay helps ensure seeking happens after ready state
+             setTimeout(function() { player.currentTime(lastTime); }, 100);
+          }
+          console.log('Retrying: Attempting play...');
+          var playPromise = player.play();
+          if (playPromise !== undefined) {
+              playPromise.catch(function(e) {
+                  console.error('Retry play attempt failed:', e);
+              });
+          }
+      });
+
+      player.one('error', function() {
+          console.error('Error occurred during retry load/play sequence.');
+      });
+
+    }, retryTimeout);
+
+  } else if (error.code === 2 || error.code === 3) {
+      console.error('Max retries (' + maxRetries + ') reached for Network/Decode error. Giving up.');
+  } else {
+      console.error('Unrecoverable error (code: ' + error.code + ') or retry not configured for this error type.');
+  }
+});
+
+// --- Hotkeys Setup (Remains the same) ---
 player.hotkeys({
     volumeStep: 0.1,
     seekStep: 5,
@@ -261,68 +174,42 @@ player.hotkeys({
     enableNumbers: false,
     enableVolumeScroll: true,
     enableHoverScroll: true,
-    // Mimic VLC seek behavior, and default to 5.
     seekStep: function(e) {
-        if (e.ctrlKey && e.altKey) {
-            return 5*60;
-        } else if (e.ctrlKey) {
-            return 60;
-        } else if (e.altKey) {
-            return 10;
-        } else {
-            return 5;
-        }
+        if (e.ctrlKey && e.altKey) { return 5*60; }
+        else if (e.ctrlKey) { return 60; }
+        else if (e.altKey) { return 10; }
+        else { return 5; }
     },
-    // Enhance existing simple hotkey with a complex hotkey
     fullscreenKey: function(e) {
         return ((e.which === 70) || (e.ctrlKey && e.which === 13));
     },
-    // Custom Keys
     customKeys: {
-        // Add new simple hotkey
         simpleKey: {
-            key: function(e) {
-            // Toggle something with S Key
-                return (e.which === 83);
-            },
+            key: function(e) { return (e.which === 83); },
             handler: function(player, options, e) {
-                // Example
-                if (player.paused()) {
-                    player.play();
-                } else {
-                    player.pause();
-                }
+                if (player.paused()) { player.play(); }
+                else { player.pause(); }
             }
         },
-        // Add new complex hotkey
         complexKey: {
-            key: function(e) {
-            // Toggle something with CTRL + D Key
-                return (e.ctrlKey && e.which === 68);
-            },
+            key: function(e) { return (e.ctrlKey && e.which === 68); },
             handler: function(player, options, event) {
-            // Example
-                if (options.enableMute) {
-                    player.muted(!player.muted());
-                }
+                if (options.enableMute) { player.muted(!player.muted()); }
             }
         },
         numbersKey: {
-            key: function(event) {
-                return ((event.which > 47 && event.which < 59) || (event.which > 95 && event.which < 106));
-            },
-            handler: function(player, options, event) {
-                if (options.enableModifiersForNumbers || !(event.metaKey || event.ctrlKey || event.altKey)) {
-                    var sub = 48;
-                    if (event.which > 95) {
-                            sub = 96;
-                        }
-                        var number = event.which - sub;
-                        player.currentTime(player.duration() * number * 0.1);
-                    }
-                }
-            },
+             key: function(event) {
+                 return ((event.which > 47 && event.which < 59) || (event.which > 95 && event.which < 106));
+             },
+             handler: function(player, options, event) {
+                 if (options.enableModifiersForNumbers || !(event.metaKey || event.ctrlKey || event.altKey)) {
+                     var sub = 48;
+                     if (event.which > 95) { sub = 96; }
+                     var number = event.which - sub;
+                     player.currentTime(player.duration() * number * 0.1);
+                 }
+             }
         }
     }
-);
+});
 </script>
