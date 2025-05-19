@@ -1,7 +1,7 @@
 package main
 
 import (
-	"errors"
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -25,32 +25,33 @@ type T struct {
 	sync.RWMutex
 }
 
-// newTorrent ..
+// Adds a new torrent
 func (app *App) newTorrent(request *http.Request, magnet metainfo.Magnet) (*T, error) {
 	torrent, err := app.client.AddMagnet(magnet.String())
 	if err != nil {
 		return nil, err
 	}
-	// not important yet
 	torrent.SetMaxEstablishedConns(conf.Nodes)
+
+	// Create a longer timeout context
+	ctx, cancel := context.WithTimeout(request.Context(), 3*time.Minute)
+	defer cancel()
 
 	select {
 	case <-torrent.GotInfo():
-		// continue...
-	case <-request.Context().Done():
+		// Success case
+		return &T{
+			Torrent:  torrent,
+			ID:       magnet.InfoHash.String(),
+			Activity: time.Now(),
+		}, nil
+	case <-ctx.Done():
 		torrent.Drop()
-		return nil, errors.New("request Context aborted")
-	case <-time.After(time.Minute):
-		torrent.Drop()
-		torrent.Closed()
-		return nil, errors.New("torrent timeout")
+		if ctx.Err() == context.DeadlineExceeded {
+			return nil, fmt.Errorf("timeout waiting for torrent info after 3 minutes")
+		}
+		return nil, fmt.Errorf("request cancelled: %v", ctx.Err())
 	}
-
-	return &T{
-		Torrent:  torrent,
-		ID:       magnet.InfoHash.String(),
-		Activity: time.Now(),
-	}, nil
 }
 
 // Close ..

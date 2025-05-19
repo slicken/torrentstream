@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/PuerkitoBio/goquery"
@@ -57,6 +58,9 @@ func katSearch(title, category string, ch chan *Torrent) error {
 		return err
 	}
 
+	// Define a list of codec indicators to filter out
+	unsupportedCodecs := []string{"HEVC", "H.265", "x265", "VP9"}
+
 	var wg sync.WaitGroup
 	doc.Find("tr#torrent_latest_torrents").Each(func(i int, s *goquery.Selection) {
 		if i == 0 {
@@ -80,11 +84,23 @@ func katSearch(title, category string, ch chan *Torrent) error {
 			if err != nil {
 				return
 			}
+
+			// Extract title
+			title := s.Find("div.torrentname a").Text()
+
+			// Check if the torrent title contains any of the unsupported codec indicators
+			torrentTitleUpper := strings.ToUpper(title)
+			for _, codec := range unsupportedCodecs {
+				if strings.Contains(torrentTitleUpper, strings.ToUpper(codec)) {
+					return
+				}
+			}
+
 			// make torrent
 			var torrent = new(Torrent)
 			torrent.MagnetURI = magnet
 			torrent.ID = hash
-			torrent.Title = s.Find("div.torrentname a").Text()
+			torrent.Title = title
 			torrent.Seeders, _ = strconv.Atoi(s.Find("td").Eq(3).Text())
 			torrent.Leechers, _ = strconv.Atoi(s.Find("td").Eq(1).Text())
 			torrent.Size = s.Find("td").Eq(1).Text()

@@ -38,6 +38,36 @@ type TorrentSites struct {
 	sync.RWMutex
 }
 
+var (
+	cachedMovies []*Torrent
+	cachedMutex  sync.RWMutex
+)
+
+// InitializeSearch initializes the search variable with all torrent sites
+func InitializeSearch() *TorrentSites {
+	// meta-search on external torrent sites
+	tpb.ScrapeFunc = tpbSearch
+	kat.ScrapeFunc = katSearch
+	yts.ScrapeFunc = ytsSearch
+	leetx.ScrapeFunc = leetxSearch
+
+	ts := &TorrentSites{
+		sites: []*TorrentSite{
+			tpb,
+			kat,
+			yts,
+			leetx,
+		},
+	}
+
+	// Initialize all sites as enabled by default
+	for _, site := range ts.sites {
+		site.Enabled = true
+	}
+
+	return ts
+}
+
 // List ..
 func (ts *TorrentSites) List() []*TorrentSite {
 	ts.RLock()
@@ -107,7 +137,6 @@ func (ts *TorrentSites) SearchTorrent(title, category string) []*Torrent {
 	var ch = make(chan *Torrent)
 
 	for _, site := range ts.Enabled() {
-
 		wg.Add(1)
 		go func(site TorrentSite) {
 			defer wg.Done()
@@ -123,7 +152,6 @@ func (ts *TorrentSites) SearchTorrent(title, category string) []*Torrent {
 			// get omdb content
 			var vg sync.WaitGroup
 			for torrent := range c {
-
 				vg.Add(1)
 				go func(torrent *Torrent, mapOmdb map[string]*Omdb) {
 					defer vg.Done()
@@ -180,4 +208,48 @@ func (ts *TorrentSites) SearchTorrent(title, category string) []*Torrent {
 	})
 
 	return torrents
+}
+
+// InitializeMovieList performs an initial search across all sites and caches the results
+func InitializeMovieList() {
+	// Initialize search if not already initialized
+	if search == nil {
+		search = InitializeSearch()
+		search.Handler(conf.Sites)
+		log.Printf("initialized torrent sites for %s, %s, %s, %s\n", tpb.Name, kat.Name, yts.Name, leetx.Name)
+	}
+
+	// Initial cache population
+	updateMoviesCache()
+
+	// Start daily update goroutine
+	go func() {
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				updateMoviesCache()
+			}
+		}
+	}()
+}
+
+// updateMoviesCache updates the cached movies from all sites
+func updateMoviesCache() {
+	// Use the common search functionality to search across all sites
+	movies := search.SearchTorrent("2025", "")
+
+	cachedMutex.Lock()
+	cachedMovies = movies
+	cachedMutex.Unlock()
+	log.Printf("Updated cashed movie list with %d movies", len(movies))
+}
+
+// GetCachedMovies returns the cached movies
+func GetCachedMovies() []*Torrent {
+	cachedMutex.RLock()
+	defer cachedMutex.RUnlock()
+	return cachedMovies
 }

@@ -65,18 +65,14 @@ func main() {
 		log.Fatal("could not initalize torrent client:", err)
 	}
 
-	// meta-search on external torrent sites
-	tpb.ScrapeFunc = tpbSearch
-	kat.ScrapeFunc = katSearch
-	search = &TorrentSites{
-		sites: []*TorrentSite{
-			tpb,
-			kat,
-		},
-	}
-
+	// Initialize search
+	search = InitializeSearch()
 	search.Handler(conf.Sites)
-	log.Printf("initalized torrent sites for %s, %s\n", tpb.Name, kat.Name)
+	log.Printf("initialized torrent sites for %s, %s, %s, %s\n", tpb.Name, kat.Name, yts.Name, leetx.Name)
+
+	// cashe movie list
+	time.Sleep(time.Second)
+	go InitializeMovieList()
 
 	subDB.search = subDBSearch
 	subDB.download = subDBDownload
@@ -106,7 +102,6 @@ func main() {
 
 	log.Println("http server running at", conf.Http)
 	log.Fatal(server.ListenAndServe())
-
 }
 
 // HandleInterrupt ..

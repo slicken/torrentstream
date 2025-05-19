@@ -79,6 +79,9 @@ func index(w http.ResponseWriter, r *http.Request) {
 		Msg: msgWelcome,
 	}
 
+	// Get cached movies by default
+	data.T = GetCachedMovies()
+
 	// http post?
 	if r.Method == http.MethodPost {
 		data.Search = r.FormValue("search")
