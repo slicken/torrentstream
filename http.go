@@ -174,14 +174,15 @@ func stream(w http.ResponseWriter, r *http.Request) {
 
 	largestFile := torrent.LargestFile()
 	reader := largestFile.NewReader()
-	reader.SetResponsive()
+	reader.SetReadahead(32 * 1024 * 1024) // 32MB readahead for smooth streaming
+	reader.SetResponsive()                // Prioritize pieces needed for playback
 	defer reader.Close()
 
-	// Set appropriate headers for streaming
-	w.Header().Set("Connection", "keep-alive")
+	// Set streaming headers
 	w.Header().Set("Content-Type", videoMIME(largestFile.Path()))
 	w.Header().Set("Accept-Ranges", "bytes")
-	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.Header().Set("Cache-Control", "public, max-age=3600")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 
 	// Use ServeContent to handle range requests properly
 	http.ServeContent(w, r, torrent.Name(), time.Time{}, reader)
