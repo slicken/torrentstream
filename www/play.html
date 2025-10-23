@@ -31,8 +31,7 @@
     playsinline
     data-setup='{
         "playbackRates": [0.25, 0.5, 1, 1.5, 2],
-        "responsive": true,
-        "fluid": true,
+        "autoplay": true,
         "html5": {
             "nativeTextTracks": false,
             "preload": "auto"
@@ -53,13 +52,9 @@
 <script>
 var player = videojs('video');
 
-// Simple error recovery
-player.on('error', function() {
-    console.log('Player error, attempting recovery...');
-    setTimeout(function() {
-        player.load();
-        player.play();
-    }, 2000);
+// Ensure autoplay works
+player.ready(function() {
+    player.play();
 });
 
 // Simple hotkeys setup

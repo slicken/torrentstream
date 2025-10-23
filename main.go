@@ -92,10 +92,10 @@ func main() {
 		Addr:    conf.Http,
 		Handler: nil, // Use default handler
 		// Increase timeouts to prevent interruptions during streaming
-		ReadTimeout:       5 * time.Minute,
+		ReadTimeout:       0, // No read timeout for streaming
 		ReadHeaderTimeout: 30 * time.Second,
-		WriteTimeout:      30 * time.Minute,
-		IdleTimeout:       2 * time.Minute,
+		WriteTimeout:      0, // No write timeout for streaming
+		IdleTimeout:       0, // No idle timeout - keep connections alive
 		// Configure for streaming with potentially imperfect data
 		MaxHeaderBytes: 1 << 20, // 1MB
 	}

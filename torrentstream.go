@@ -47,11 +47,17 @@ func NewClient() (*torrent.Client, error) {
 	cfg := torrent.NewDefaultClientConfig()
 
 	cfg.Seed = conf.Seed
-	cfg.DisableTrackers = true
+	cfg.DisableTrackers = conf.Trackers == false // Enable trackers by default
 
 	if conf.FileDir != "" {
 		cfg.DataDir = conf.FileDir
 	}
+
+	// Enable more connection options for better streaming
+	cfg.DisableIPv6 = false       // Enable IPv6 for more peers
+	cfg.DisableUTP = false        // Enable UTP for better connections
+	cfg.DisableWebtorrent = false // Enable WebTorrent for browser peers
+	cfg.DisablePEX = false        // Enable peer exchange
 
 	// Configure download rate limiter
 	if conf.DLRate > 0 {
@@ -74,11 +80,6 @@ func NewClient() (*torrent.Client, error) {
 		cfg.UploadRateLimiter = rate.NewLimiter(rate.Limit(conf.ULRate), burst)
 		log.Printf("Upload rate limited to %d bytes/s (burst: %d bytes)", conf.ULRate, burst)
 	}
-
-	// More lenient peer settings
-	cfg.DisableIPv6 = true       // Disable IPv6 to reduce connection issues
-	cfg.DisableUTP = true        // Disable UTP to use only TCP
-	cfg.DisableWebtorrent = true // Disable WebTorrent to avoid browser-specific issues
 
 	return torrent.NewClient(cfg)
 }
