@@ -13,7 +13,7 @@ var (
 	yts = &TorrentSite{
 		Name:      "YTS",
 		Scheme:    "https",
-		URL:       "yts.mx",
+		URL:       "yts.lt", //yts.mx
 		UserAgent: "",
 	}
 )

@@ -44,6 +44,10 @@ sudo systemctl status torrentstream
 sudo journalctl -u torrentstream -f
 ```
 
+### `-ffmpeg` ###
+
+**`-ffmpeg`** serves **standardized** video (H.264/AAC) so more files play in the browser. It does **not** support **seek / scrub** the way normal **`/stream`** does (no full-length timeline; you mostly watch from the current position). Uses more CPU; FFmpeg is found on `PATH` or via **`FFMPEG_PATH`** / **`-ffmpeg.path`**.
+
 ### app args ###
 ```
 $ ./torrentstream --help
@@ -66,7 +70,13 @@ Usage of ./torrentstream:
     	check torrent sites (minutes) (default 100)
   -ul int
     	max bytes per second (upload) (default -1)
+  -ffmpeg
+    	standardized browser output; weak seeking (see above)
+  -ffmpeg.path string
+    	ffmpeg binary if not on PATH
 ```
+
+Run `./torrentstream -h` for the full, up-to-date flag list.
 
 ![Alt text](screenshot_new.png?raw=true "torrentstream.png")
 

@@ -137,6 +137,10 @@ func videoMIME(path string) string {
 		return "video/x-flv"
 	case ".mp4", ".m4a", ".m4p", ".m4b", ".m4r", ".m4v":
 		return "video/mp4"
+	case ".webm":
+		return "video/webm"
+	case ".mkv", ".mka", ".mks":
+		return "video/x-matroska"
 	case ".m1v":
 		return "video/mpeg"
 	case ".ogg":
@@ -151,7 +155,7 @@ func videoMIME(path string) string {
 		return "video/quicktime"
 	case ".avi":
 		return "video/x-msvideo"
-	case ".wma", "wmv":
+	case ".wma", ".wmv":
 		return "video/x-ms-wmv"
 	default:
 		return "application/octet-stream"

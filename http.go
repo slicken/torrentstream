@@ -99,6 +99,22 @@ func index(w http.ResponseWriter, r *http.Request) {
 	tmplIndex.Execute(w, data)
 }
 
+// requestBaseURL returns the client-facing origin (scheme + host) for building absolute links.
+func requestBaseURL(r *http.Request) string {
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	if fp := r.Header.Get("X-Forwarded-Proto"); fp == "https" || fp == "http" {
+		scheme = fp
+	}
+	host := r.Host
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	return scheme + "://" + host
+}
+
 func processMagnetURI(r *http.Request) (string, metainfo.Magnet, error) {
 	// Check query
 	raw, err := url.QueryUnescape(r.URL.RawQuery)
@@ -136,17 +152,37 @@ func play(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	streamEndpoint := "stream"
+	contentType := videoMIME(torrent.LargestFile().Path())
+	if conf.FFmpeg {
+		streamEndpoint = "ffmpeg"
+		contentType = "video/mp4"
+	}
+
+	// Full stream URL for <source>; use template.URL so html/template does not
+	// mangle RawQuery (magnet links contain ?, &, :, etc.).
+	playSrc := "/" + streamEndpoint + "?" + r.URL.RawQuery
+	fallbackStreamURL := requestBaseURL(r) + playSrc
+
 	// Data to send to play
 	var data = struct {
-		Title       string
-		URI         string
-		ContentType string
-		Subs        []Subtitle
+		Title             string
+		URI               string
+		StreamEndpoint    string
+		PlaySrc           template.URL
+		FallbackStreamURL string
+		FFmpegMode        bool
+		ContentType       string
+		Subs              []Subtitle
 	}{
-		Title:       magnet.DisplayName,
-		URI:         uri,
-		ContentType: videoMIME(torrent.LargestFile().Path()),
-		Subs:        torrent.Subs,
+		Title:             magnet.DisplayName,
+		URI:               uri,
+		StreamEndpoint:    streamEndpoint,
+		PlaySrc:           template.URL(playSrc),
+		FallbackStreamURL: fallbackStreamURL,
+		FFmpegMode:        conf.FFmpeg,
+		ContentType:       contentType,
+		Subs:              torrent.Subs,
 	}
 
 	tmplPlay.Execute(w, data)

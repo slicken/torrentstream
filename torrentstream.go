@@ -58,6 +58,7 @@ func NewClient() (*torrent.Client, error) {
 	cfg.DisableUTP = false        // Enable UTP for better connections
 	cfg.DisableWebtorrent = false // Enable WebTorrent for browser peers
 	cfg.DisablePEX = false        // Enable peer exchange
+	cfg.NoDHT = false             // Enable DHT for more peers
 
 	// Configure download rate limiter
 	if conf.DLRate > 0 {

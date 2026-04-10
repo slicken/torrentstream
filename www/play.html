@@ -20,7 +20,27 @@
     .video-js .vjs-volume-level, .video-js .vjs-play-progress, .video-js .vjs-slider-bar { background: whitesmoke; }
     .video-js .vjs-load-progress { background: lighten(lighten(22,22,22, 33%), 25%); background: rgba(lighten(22,22,22, 33%), 0.5); }
     .video-js .vjs-load-progress div { background: lighten(lighten(22,22,22, 33%), 50%); background: rgba(lighten(22,22,22, 33%), 0.75); }
+    #playback-fallback { display: none; position: fixed; inset: 0; z-index: 9999; align-items: center; justify-content: center;
+        padding: 2rem; background: rgba(0,0,0,0.92); color: #eee; font-size: 16px; line-height: 1.5; text-align: center; }
+    #playback-fallback.visible { display: flex; flex-direction: column; gap: 1rem; }
+    #playback-fallback code { display: block; max-width: 100%; overflow: auto; word-break: break-all;
+        background: #111; padding: 0.75rem; border-radius: 4px; font-size: 13px; text-align: left; margin: 0.5rem 0; }
+    #playback-fallback button { margin: 0.25rem; padding: 0.5rem 1rem; cursor: pointer; font-size: 15px; border-radius: 4px; border: none; background: #444; color: #fff; }
+    #playback-fallback button:hover { background: #666; }
 </style>
+
+<div id="playback-fallback" role="alert">
+    {{if .FFmpegMode}}
+    <p><strong>Playback failed.</strong> This page uses FFmpeg transcoding (H.264/AAC). If you still see this, the torrent may be slow to start, FFmpeg may have exited (see server log), or the browser blocked the stream.</p>
+    {{else}}
+    <p><strong>In-browser playback failed.</strong> Browsers only decode formats they support (often MP4/H.264/AAC). This file may use another codec or container (e.g. MKV, HEVC).</p>
+    {{end}}
+    <p>Open in a desktop player (VLC: Media → Open Network Stream, or mpv) and paste this URL:</p>
+    <code id="fallback-stream-url">{{.FallbackStreamURL}}</code>
+    <div>
+        <button type="button" id="fallback-copy">Copy URL</button>
+    </div>
+</div>
 
 <video-js id="video" class="video-js vjs-default-skin vjs-fill"
     crossorigin="anonymous"
@@ -38,9 +58,7 @@
         }
     }'>
 
-    <source src='/stream?{{.URI}}' type="video/mp4" label="MP4">
-    <source src='/stream?{{.URI}}' type="video/webm">
-    <source src='/stream?{{.URI}}' type="video/ogg">
+    <source src="{{.PlaySrc}}" type="{{.ContentType}}">
     <p class="vjs-no-js">your browser does not support the video tag.</p>
 
     {{range .Subs}}
@@ -52,9 +70,67 @@
 <script>
 var player = videojs('video');
 
+var fallbackEl = document.getElementById('playback-fallback');
+var fallbackURLEl = document.getElementById('fallback-stream-url');
+document.getElementById('fallback-copy').addEventListener('click', function () {
+    var url = (fallbackURLEl.textContent || '').trim();
+    if (url && navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).catch(function () {});
+    }
+});
+
+function showPlaybackFallback() {
+    fallbackEl.classList.add('visible');
+}
+
+// Video.js can emit `error` while playback still works (startup noise, reconnect,
+// end of chunked stream). Only show the overlay if nothing actually played.
+var sawPlayback = false;
+var fallbackTimer = null;
+
+function markPlaybackStarted() {
+    sawPlayback = true;
+    if (fallbackTimer) {
+        clearTimeout(fallbackTimer);
+        fallbackTimer = null;
+    }
+    fallbackEl.classList.remove('visible');
+}
+
+player.on('playing', markPlaybackStarted);
+player.on('timeupdate', function onFirstProgress() {
+    if (player.currentTime() > 0.05) {
+        markPlaybackStarted();
+        player.off('timeupdate', onFirstProgress);
+    }
+});
+
+player.on('error', function () {
+    var err = player.error();
+    if (!err || err.code === 1) {
+        return;
+    }
+    if (sawPlayback) {
+        return;
+    }
+    if (fallbackTimer) {
+        clearTimeout(fallbackTimer);
+    }
+    fallbackTimer = setTimeout(function () {
+        fallbackTimer = null;
+        if (sawPlayback) {
+            return;
+        }
+        var e = player.error();
+        if (e && e.code !== 1) {
+            showPlaybackFallback();
+        }
+    }, 2500);
+});
+
 // Ensure autoplay works
 player.ready(function() {
-    player.play();
+    player.play().catch(function () {});
 });
 
 // Simple hotkeys setup
