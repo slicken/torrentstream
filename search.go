@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -91,23 +92,37 @@ func (ts *TorrentSites) Enabled() []*TorrentSite {
 	return sites
 }
 
+// siteHealthURL requests a path that should return 200 when the indexer is usable.
+// Hitting only "/" often yields 403 from CDNs while real search/API endpoints work.
+func siteHealthURL(site *TorrentSite) string {
+	u := url.URL{Scheme: site.Scheme, Host: site.URL}
+	switch site.Name {
+	case "1337x":
+		u.Path = "/search/2020/1/"
+	case "Kickass torrents":
+		u.Path = "/usearch/2020/"
+	case "YTS":
+		u.Path = "/api/v2/list_movies.json"
+		q := url.Values{}
+		q.Set("limit", "1")
+		u.RawQuery = q.Encode()
+	default:
+		u.Path = "/"
+	}
+	return u.String()
+}
+
 // Handler is keeping track of torrentSites, if they are up or down.
 func (ts *TorrentSites) Handler(minutes int) {
 	go func() {
 		for {
 			for i, site := range ts.List() {
-				// make url
-				url := url.URL{
-					Scheme: site.Scheme,
-					Host:   site.URL,
-				}
-
-				req, err := http.NewRequest("GET", url.String(), nil)
+				req, err := http.NewRequest("GET", siteHealthURL(site), nil)
 				if err != nil {
-					return
+					log.Println(site.Name, "health URL:", err)
+					continue
 				}
 
-				// do request (client from search_utils.go already handles random user agents)
 				resp, err := client.Do(req)
 				if err != nil {
 					ts.sites[i].Enabled = false
@@ -116,12 +131,16 @@ func (ts *TorrentSites) Handler(minutes int) {
 				}
 				resp.Body.Close()
 
-				// update status
-				if resp.StatusCode != http.StatusOK {
+				switch {
+				case resp.StatusCode == http.StatusOK:
+					ts.sites[i].Enabled = true
+				case resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusUnauthorized:
+					// Cloudflare and similar often return 403 to non-browser TLS; do not mark dead.
+					ts.sites[i].Enabled = true
+					log.Printf("%s health check: %d (CDN/bot filter; leaving enabled — searches may still work)", site.Name, resp.StatusCode)
+				default:
 					ts.sites[i].Enabled = false
 					log.Println(site.Name, "Disabled - Status code:", resp.StatusCode)
-				} else {
-					ts.sites[i].Enabled = true
 				}
 			}
 
@@ -158,6 +177,9 @@ func (ts *TorrentSites) SearchTorrent(title, category string) []*Torrent {
 
 					// check is this torrent nr of seeders passes minimum seeders in config
 					if torrent.Seeders < conf.Seeders {
+						return
+					}
+					if conf != nil && !conf.FFmpeg && !chromeBrowserLikelyPlayable(torrent.Title) {
 						return
 					}
 					title, year := parseTitle(torrent.Title)
@@ -238,13 +260,13 @@ func InitializeMovieList() {
 
 // updateMoviesCache updates the cached movies from all sites
 func updateMoviesCache() {
-	// Use the common search functionality to search across all sites
-	movies := search.SearchTorrent("2025", "")
+	searchText := strconv.Itoa(time.Now().Year())
+	movies := search.SearchTorrent(searchText, "")
 
 	cachedMutex.Lock()
 	cachedMovies = movies
 	cachedMutex.Unlock()
-	log.Printf("Updated cashed movie list with %d movies", len(movies))
+	log.Printf("Updated cashed movie list with %d movies (search %s)", len(movies), searchText)
 }
 
 // GetCachedMovies returns the cached movies

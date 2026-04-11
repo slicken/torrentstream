@@ -17,32 +17,65 @@ import (
 
 const mb = 16 << 16
 
-// List of user agents to rotate through
-var userAgents = []string{
-	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Safari/605.1.15",
-	"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0",
-	"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36",
-	"Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1",
-	"Mozilla/5.0 (iPad; CPU OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1",
+// Chrome <video> (no -ffmpeg): filter listings by title heuristics — not exact MIME probing.
+var (
+	reChromeBadCodec = regexp.MustCompile(`(?i)\b(x265|h\.?265|hevc|hev1|av1|av01)\b`)
+	reChromeBadExt   = regexp.MustCompile(`(?i)\.(mkv|avi|wmv|flv|m2ts|mpeg|mpg|vob|divx|ogm|asf|ts)$`)
+)
+
+// chromeBrowserLikelyPlayable is false when the release name clearly points at
+// codecs or containers Chrome typically will not decode in-browser.
+func chromeBrowserLikelyPlayable(title string) bool {
+	if reChromeBadCodec.MatchString(title) {
+		return false
+	}
+	if reChromeBadExt.MatchString(strings.TrimSpace(title)) {
+		return false
+	}
+	return true
 }
 
-// client with rotating user agent
+// List of user agents to rotate through (recent Chrome; fewer bot heuristics than ancient UAs).
+var userAgents = []string{
+	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+	"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+}
+
+// headerRoundTripper adds browser-like headers (many indexers sit behind CDNs that flag bare Go clients).
+type headerRoundTripper struct{ rt http.RoundTripper }
+
+func (h headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	ua := GetRandomUserAgent()
+	req.Header.Set("User-Agent", ua)
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	if strings.Contains(ua, "Chrome") && !strings.Contains(ua, "Edg") {
+		req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,application/json;q=0.8,image/avif,image/webp,*/*;q=0.7")
+		req.Header.Set("Sec-CH-UA", `"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"`)
+		req.Header.Set("Sec-CH-UA-Mobile", "?0")
+		platform := `"Windows"`
+		if strings.Contains(ua, "Linux") {
+			platform = `"Linux"`
+		} else if strings.Contains(ua, "Macintosh") {
+			platform = `"macOS"`
+		}
+		req.Header.Set("Sec-CH-UA-Platform", platform)
+	} else if req.Header.Get("Accept") == "" {
+		req.Header.Set("Accept", "*/*")
+	}
+	return h.rt.RoundTrip(req)
+}
+
+// client for torrent site scraping.
 var client = &http.Client{
-	Transport: &http.Transport{
-		Proxy: func(req *http.Request) (*url.URL, error) {
-			// Set random user agent for all requests
-			req.Header.Set("User-Agent", GetRandomUserAgent())
-			return nil, nil
-		},
+	Transport: headerRoundTripper{rt: &http.Transport{
 		Dial: (&net.Dialer{
 			Timeout: 5 * time.Second,
 		}).Dial,
 		TLSHandshakeTimeout: 5 * time.Second,
 		DisableKeepAlives:   true,
-		// DisableCompression:  true,
-	},
-	Timeout: 10 * time.Second,
+	}},
+	Timeout: 25 * time.Second,
 }
 
 // GetRandomUserAgent returns a random user agent from the list
@@ -137,6 +170,10 @@ func videoMIME(path string) string {
 		return "video/x-flv"
 	case ".mp4", ".m4a", ".m4p", ".m4b", ".m4r", ".m4v":
 		return "video/mp4"
+	case ".webm":
+		return "video/webm"
+	case ".mkv", ".mka", ".mks":
+		return "video/x-matroska"
 	case ".m1v":
 		return "video/mpeg"
 	case ".ogg":
@@ -151,7 +188,7 @@ func videoMIME(path string) string {
 		return "video/quicktime"
 	case ".avi":
 		return "video/x-msvideo"
-	case ".wma", "wmv":
+	case ".wma", ".wmv":
 		return "video/x-ms-wmv"
 	default:
 		return "application/octet-stream"

@@ -1,3 +1,4 @@
+*.service
 torrentstream
 app
 build.sh

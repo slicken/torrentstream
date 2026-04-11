@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"syscall"
 	"time"
@@ -29,6 +30,9 @@ type Config struct {
 	DLRate   int
 	Seed     bool
 	Trackers bool
+	FFmpeg   bool
+	// FFmpegPath is resolved with exec.LookPath when FFmpeg is true.
+	FFmpegPath string
 }
 
 func main() {
@@ -48,7 +52,18 @@ func main() {
 	flag.IntVar(&conf.DLRate, "dl", -1, "max bytes per second (download)")
 	flag.BoolVar(&conf.Seed, "seed", false, "seed after download")
 	flag.BoolVar(&conf.Trackers, "trackers", false, "add trackers to magnet links")
+	flag.BoolVar(&conf.FFmpeg, "ffmpeg", false, "transcode via FFmpeg for browser-friendly H.264/AAC (serves /ffmpeg instead of raw /stream)")
+	flag.StringVar(&conf.FFmpegPath, "ffmpeg.path", "ffmpeg", "path to ffmpeg binary (used when -ffmpeg is set)")
 	flag.Parse()
+
+	if conf.FFmpeg {
+		p, err := exec.LookPath(conf.FFmpegPath)
+		if err != nil {
+			log.Fatal("-ffmpeg: ffmpeg binary not found:", err)
+		}
+		conf.FFmpegPath = p
+		log.Println("FFmpeg transcoding enabled:", p)
+	}
 
 	if OMDB_KEY == "" {
 		log.Println("!!WARNING!! env key 'OMDB_KEY' is not set. Will not plot posters and movie info")
@@ -84,6 +99,7 @@ func main() {
 	http.HandleFunc("/", index)
 	http.HandleFunc("/play", play)
 	http.HandleFunc("/stream", stream)
+	http.HandleFunc("/ffmpeg", ffmpegStream)
 	http.HandleFunc("/stats", stats)
 
 	// https server
@@ -92,10 +108,10 @@ func main() {
 		Addr:    conf.Http,
 		Handler: nil, // Use default handler
 		// Increase timeouts to prevent interruptions during streaming
-		ReadTimeout:       5 * time.Minute,
+		ReadTimeout:       0, // No read timeout for streaming
 		ReadHeaderTimeout: 30 * time.Second,
-		WriteTimeout:      30 * time.Minute,
-		IdleTimeout:       2 * time.Minute,
+		WriteTimeout:      0, // No write timeout for streaming
+		IdleTimeout:       0, // No idle timeout - keep connections alive
 		// Configure for streaming with potentially imperfect data
 		MaxHeaderBytes: 1 << 20, // 1MB
 	}
@@ -111,6 +127,8 @@ func HandleInterrupt() {
 
 	<-closeChan
 	log.Printf("\nShutdown signal received. Cleaning up...\n")
+
+	KillAllFFmpegProcesses()
 
 	// Stop the app's goroutines and clean up torrents
 	app.Shutdown()

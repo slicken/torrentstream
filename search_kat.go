@@ -14,7 +14,7 @@ import (
 var kat = &TorrentSite{
 	Name:      "Kickass torrents",
 	Scheme:    "https",
-	URL:       "kickass2.cc",
+	URL:       "kickasstorrents.to",
 	UserAgent: "",
 }
 

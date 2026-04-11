@@ -32,7 +32,7 @@ func tpbSearch(title, category string, ch chan *Torrent) error {
 
 	// create url
 	url := url.URL{
-		Scheme: kat.Scheme,
+		Scheme: tpb.Scheme,
 		Host:   tpb.URL,
 		Path:   fmt.Sprintf("search/%s/0/99/%s", title, category),
 	}
