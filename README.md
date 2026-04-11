@@ -1,6 +1,6 @@
 # torrentstream.io
 
-This streamer app is for private use only.<br>
+This stream app is for private use only.<br>
 <br>
 serveing any movie content, shared by others on the torrent networks as a stream.<br>
 making meta-search on The Piratebay, Kickass torrents and plots results (with poster, info and score) to stream directly in browser.<br>
