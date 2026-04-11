@@ -13,7 +13,7 @@ var (
 	yts = &TorrentSite{
 		Name:      "YTS",
 		Scheme:    "https",
-		URL:       "yts.lt", //yts.mx
+		URL:       "yts.bz",
 		UserAgent: "",
 	}
 )
@@ -48,8 +48,7 @@ type YTSResponse struct {
 func ytsSearch(title, category string, ch chan *Torrent) error {
 	defer close(ch)
 
-	// Create base URL
-	baseURL := "https://yts.mx/api/v2/list_movies.json"
+	baseURL := fmt.Sprintf("%s://%s/api/v2/list_movies.json", yts.Scheme, yts.URL)
 
 	// Build query parameters
 	params := url.Values{}

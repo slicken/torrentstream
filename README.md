@@ -1,11 +1,10 @@
 # torrentstream.io
 
-This streaming website is for private use only.<br>
+This streamer app is for private use only.<br>
 <br>
 serveing any movie content, shared by others on the torrent networks as a stream.<br>
 making meta-search on The Piratebay, Kickass torrents and plots results (with poster, info and score) to stream directly in browser.<br>
 adds sub if found in torrent, if not then fetching it from subdb and inserts it.<br>
-This streaming website is for private use only.<br>
 
 ### build ###
 ```
@@ -13,40 +12,10 @@ CGO_ENABLE=0 go build
 export OMDB=your_omdb_key
 ./torrentstream
 ```
-### docker ###
-```
-docker build . -t torrentstream
-docker run -p 8080:8080 -p 5000:5000 torrentstream
-```
-### systemd service ###
-For automatic restart on failure, install as a systemd service:
-
-1. Copy the service file:
-```bash
-sudo cp torrentstream.service /etc/systemd/system/
-```
-
-2. Edit the service file to set your:
-- Username (replace %i)
-- Working directory
-- OMDB API key
-
-3. Enable and start the service:
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable torrentstream
-sudo systemctl start torrentstream
-```
-
-4. Check status and logs:
-```bash
-sudo systemctl status torrentstream
-sudo journalctl -u torrentstream -f
-```
 
 ### `-ffmpeg` ###
 
-**`-ffmpeg`** serves **standardized** video (H.264/AAC) so more files play in the browser. It does **not** support **seek / scrub** the way normal **`/stream`** does (no full-length timeline; you mostly watch from the current position). Uses more CPU; FFmpeg is found on `PATH` or via **`FFMPEG_PATH`** / **`-ffmpeg.path`**.
+**`-ffmpeg`** mode serves **standardized** video (H.264/AAC) so more files play in the browser. It does **not** support **seek / scrub** the way normal **`/stream`** does (no full-length timeline; you mostly watch from the current position). Uses more CPU; FFmpeg is found on `PATH` or via **`FFMPEG_PATH`** / **`-ffmpeg.path`**.
 
 ### app args ###
 ```
@@ -75,8 +44,6 @@ Usage of ./torrentstream:
   -ffmpeg.path string
     	ffmpeg binary if not on PATH
 ```
-
-Run `./torrentstream -h` for the full, up-to-date flag list.
 
 ![Alt text](screenshot_new.png?raw=true "torrentstream.png")
 

@@ -17,7 +17,7 @@ var (
 		Name:      "1337x",
 		Scheme:    "https",
 		URL:       "x1337x.ws",
-		UserAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+		UserAgent: "",
 	}
 )
 
@@ -35,8 +35,6 @@ func leetxSearch(title, category string, ch chan *Torrent) error {
 	if err != nil {
 		return err
 	}
-	req.Header.Set("User-Agent", leetx.UserAgent)
-
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
