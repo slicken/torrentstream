@@ -14,6 +14,11 @@ import (
 	"golang.org/x/time/rate"
 )
 
+const (
+	torrentCleanupInterval = 10 * time.Second
+	torrentIdleTimeout     = 5 * time.Minute
+)
+
 // App is main program struct
 type App struct {
 	client   *torrent.Client
@@ -47,7 +52,7 @@ func NewClient() (*torrent.Client, error) {
 	cfg := torrent.NewDefaultClientConfig()
 
 	cfg.Seed = conf.Seed
-	cfg.DisableTrackers = conf.Trackers == false // Enable trackers by default
+	cfg.DisableTrackers = !conf.Trackers
 
 	if conf.FileDir != "" {
 		cfg.DataDir = conf.FileDir
@@ -98,19 +103,34 @@ func (app *App) List() []string {
 	return torrents
 }
 
+// ListIDs returns the info hashes for all loaded torrents.
+func (app *App) ListIDs() []string {
+	app.RLock()
+	defer app.RUnlock()
+
+	ids := make([]string, 0, len(app.torrents))
+	for id := range app.torrents {
+		ids = append(ids, id)
+	}
+
+	return ids
+}
+
 // Add will add or returns existing torrent
 func (app *App) Add(request *http.Request, magnet metainfo.Magnet) (*T, error) {
-	if conf.Streams > 0 && len(app.torrents) > conf.Streams {
-		return nil, errors.New("maximum number of active streams reached. Please wait for some streams to finish.")
-	}
 	id := magnet.InfoHash.String()
 
 	// check active map
 	app.RLock()
 	t, ok := app.torrents[id]
+	active := len(app.torrents)
 	app.RUnlock()
 	if ok {
+		t.Touch()
 		return t, nil
+	}
+	if conf.Streams > 0 && active >= conf.Streams {
+		return nil, errors.New("maximum number of active streams reached. Please wait for some streams to finish.")
 	}
 
 	// add torrent
@@ -120,19 +140,31 @@ func (app *App) Add(request *http.Request, magnet metainfo.Magnet) (*T, error) {
 		return nil, err
 	}
 
-	// add subtitles if possible - run subfunctions
-	if err = t.addSubtitles([]string{"en", "se"}); err != nil {
-		log.Println(err)
-	}
-
-	// add to history
-	history = append([]History{{time.Now(), t.Name()}}, history...)
-
 	// add to map
 	log.Println("streaming", t.Name())
 	app.Lock()
+	if existing, ok := app.torrents[id]; ok {
+		app.Unlock()
+		existing.Touch()
+		return existing, nil
+	}
+	if conf.Streams > 0 && len(app.torrents) >= conf.Streams {
+		app.Unlock()
+		t.close()
+		return nil, errors.New("maximum number of active streams reached. Please wait for some streams to finish.")
+	}
 	app.torrents[id] = t
 	app.Unlock()
+
+	// add to history after the torrent is active
+	history = append([]History{{time.Now(), t.Name()}}, history...)
+
+	go func() {
+		if err := t.addSubtitles([]string{"en", "se"}); err != nil {
+			log.Println(err)
+		}
+	}()
+
 	return t, nil
 }
 
@@ -151,18 +183,37 @@ func (app *App) Get(id string) (*T, bool) {
 // Delete torrent
 func (app *App) Delete(id string) bool {
 	app.Lock()
-	defer app.Unlock()
-
 	torrent, exist := app.torrents[id]
 	if !exist {
+		app.Unlock()
 		return false
 	}
 
 	delete(app.torrents, id)
+	app.Unlock()
 
 	if torrent != nil {
 		torrent.close()
 	}
+	return true
+}
+
+func (app *App) DeleteIfIdle(id string, idleFor time.Duration) bool {
+	app.Lock()
+	torrent, exist := app.torrents[id]
+	if !exist {
+		app.Unlock()
+		return false
+	}
+	if !torrent.IdleFor(idleFor) {
+		app.Unlock()
+		return false
+	}
+
+	delete(app.torrents, id)
+	app.Unlock()
+
+	torrent.close()
 	return true
 }
 
@@ -185,9 +236,9 @@ func (app *App) Shutdown() {
 		log.Println("Warning: goroutines did not finish in time")
 	}
 
-	// Get list of all torrents and delete them
-	for _, name := range app.List() {
-		app.Delete(name)
+	// Get list of all torrents by map key and delete them.
+	for _, id := range app.ListIDs() {
+		app.Delete(id)
 	}
 
 	// Close the torrent client and wait for it to finish
@@ -228,7 +279,7 @@ func (app *App) handler() {
 	app.wg.Add(1)
 	go func() {
 		defer app.wg.Done()
-		ticker := time.NewTicker(10 * time.Second)
+		ticker := time.NewTicker(torrentCleanupInterval)
 		defer ticker.Stop()
 
 		for {
@@ -240,19 +291,15 @@ func (app *App) handler() {
 
 				app.RLock()
 				for id, torrent := range app.torrents {
-					torrent.RLock()
-					conn := torrent.Conn
-					torrent.RUnlock()
-
-					if conn == 0 {
+					if torrent.IdleFor(torrentIdleTimeout) {
 						torrentsToDelete = append(torrentsToDelete, id)
 					}
 				}
 				app.RUnlock()
 
-				// Delete torrents outside the read lock to avoid deadlocks
+				// Delete torrents outside the read lock, re-checking idleness before dropping.
 				for _, id := range torrentsToDelete {
-					app.Delete(id)
+					app.DeleteIfIdle(id, torrentIdleTimeout)
 				}
 			}
 		}

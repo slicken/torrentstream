@@ -153,7 +153,12 @@ func play(w http.ResponseWriter, r *http.Request) {
 	}
 
 	streamEndpoint := "stream"
-	contentType := videoMIME(torrent.LargestFile().Path())
+	largestFile := torrent.LargestFile()
+	if largestFile == nil {
+		http.Error(w, "torrent contains no streamable files", http.StatusNotFound)
+		return
+	}
+	contentType := videoMIME(largestFile.Path())
 	if conf.FFmpeg {
 		streamEndpoint = "ffmpeg"
 		contentType = "video/mp4"
@@ -162,6 +167,7 @@ func play(w http.ResponseWriter, r *http.Request) {
 	// Full stream URL for <source>; use template.URL so html/template does not
 	// mangle RawQuery (magnet links contain ?, &, :, etc.).
 	playSrc := "/" + streamEndpoint + "?" + r.URL.RawQuery
+	keepAliveURL := "/touch?" + r.URL.RawQuery
 	fallbackStreamURL := requestBaseURL(r) + playSrc
 
 	// Data to send to play
@@ -170,6 +176,7 @@ func play(w http.ResponseWriter, r *http.Request) {
 		URI               string
 		StreamEndpoint    string
 		PlaySrc           template.URL
+		KeepAliveURL      template.URL
 		FallbackStreamURL string
 		FFmpegMode        bool
 		ContentType       string
@@ -179,13 +186,37 @@ func play(w http.ResponseWriter, r *http.Request) {
 		URI:               uri,
 		StreamEndpoint:    streamEndpoint,
 		PlaySrc:           template.URL(playSrc),
+		KeepAliveURL:      template.URL(keepAliveURL),
 		FallbackStreamURL: fallbackStreamURL,
 		FFmpegMode:        conf.FFmpeg,
 		ContentType:       contentType,
-		Subs:              torrent.Subs,
+		Subs:              torrent.Subtitles(),
 	}
 
 	tmplPlay.Execute(w, data)
+}
+
+func touch(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodPost && r.Method != http.MethodHead {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	_, magnet, err := processMagnetURI(r)
+	if err != nil {
+		log.Println("touch magnet uri:", err)
+		http.Error(w, "bad magnet uri", http.StatusBadRequest)
+		return
+	}
+
+	torrent, ok := app.Get(magnet.InfoHash.String())
+	if !ok {
+		http.Error(w, "torrent not found", http.StatusNotFound)
+		return
+	}
+
+	torrent.Touch()
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func stream(w http.ResponseWriter, r *http.Request) {
@@ -193,7 +224,7 @@ func stream(w http.ResponseWriter, r *http.Request) {
 	_, magnet, err := processMagnetURI(r)
 	if err != nil {
 		log.Println("error magnet uri:", err)
-		http.Redirect(w, r, "/", 200)
+		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
 
@@ -209,6 +240,10 @@ func stream(w http.ResponseWriter, r *http.Request) {
 	torrent.TrackConnectionActivity(r)
 
 	largestFile := torrent.LargestFile()
+	if largestFile == nil {
+		http.Error(w, "torrent contains no streamable files", http.StatusNotFound)
+		return
+	}
 	reader := largestFile.NewReader()
 	reader.SetReadahead(32 * 1024 * 1024) // 32MB readahead for smooth streaming
 	// SetResponsive() triggers anacrolix/torrent internal checkPendingPiecesMatchesRequestOrder

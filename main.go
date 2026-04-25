@@ -2,11 +2,13 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 )
@@ -35,6 +37,49 @@ type Config struct {
 	FFmpegPath string
 }
 
+// Usage prints a concise, grouped help screen.
+func Usage() {
+	exe := filepath.Base(os.Args[0])
+	if exe == "" {
+		exe = "torrentstream"
+	}
+
+	fmt.Fprintf(flag.CommandLine.Output(), `torrentstream
+
+Private torrent-to-browser streaming service.
+
+Usage:
+  %s [options]
+
+Server:
+  -http <addr>          HTTP listen address                  default: :8080
+  -dir <path>           temporary download directory          default: tmp
+  -maximum <n>          maximum active torrents               default: 0 (unlimited)
+
+Torrent:
+  -seeders <n>          minimum seeders in search results     default: 1
+  -nodes <n>            maximum peer connections per torrent  default: 100
+  -trackers             enable tracker peer discovery         default: true
+  -seed                 keep seeding after download           default: false
+
+Bandwidth:
+  -dl <bytes/sec>       download rate limit                   default: -1 (unlimited)
+  -ul <bytes/sec>       upload rate limit                     default: -1 (unlimited)
+
+Search:
+  -site <minutes>       torrent-site health check interval    default: 60
+
+Playback:
+  -ffmpeg               transcode to browser-friendly MP4     default: false
+  -ffmpeg.path <path>   FFmpeg binary path                    default: ffmpeg
+
+Examples:
+  %s -http :8080
+  %s -ffmpeg -maximum 5
+
+`, exe, exe, exe)
+}
+
 func main() {
 	// HandleInterrupt in a goroutine
 	go HandleInterrupt()
@@ -42,6 +87,7 @@ func main() {
 	var err error
 	// configuration flags
 	conf = new(Config)
+	flag.Usage = Usage
 	flag.StringVar(&conf.Http, "http", ":8080", "http server address")
 	flag.StringVar(&conf.FileDir, "dir", "tmp", "directory for temporary files")
 	flag.IntVar(&conf.Seeders, "seeders", 1, "minimum seeders to show torrent as result")
@@ -51,7 +97,7 @@ func main() {
 	flag.IntVar(&conf.ULRate, "ul", -1, "max bytes per second (upload)")
 	flag.IntVar(&conf.DLRate, "dl", -1, "max bytes per second (download)")
 	flag.BoolVar(&conf.Seed, "seed", false, "seed after download")
-	flag.BoolVar(&conf.Trackers, "trackers", false, "add trackers to magnet links")
+	flag.BoolVar(&conf.Trackers, "trackers", true, "enable trackers for peer discovery")
 	flag.BoolVar(&conf.FFmpeg, "ffmpeg", false, "transcode via FFmpeg for browser-friendly H.264/AAC (serves /ffmpeg instead of raw /stream)")
 	flag.StringVar(&conf.FFmpegPath, "ffmpeg.path", "ffmpeg", "path to ffmpeg binary (used when -ffmpeg is set)")
 	flag.Parse()
@@ -98,6 +144,7 @@ func main() {
 	http.Handle("/tmp/", http.StripPrefix("/tmp/", http.FileServer(http.Dir(conf.FileDir))))
 	http.HandleFunc("/", index)
 	http.HandleFunc("/play", play)
+	http.HandleFunc("/touch", touch)
 	http.HandleFunc("/stream", stream)
 	http.HandleFunc("/ffmpeg", ffmpegStream)
 	http.HandleFunc("/stats", stats)

@@ -60,7 +60,7 @@ func (t *T) close() {
 	<-t.Closed()
 
 	// remove subtitles
-	for _, file := range t.Subs {
+	for _, file := range t.Subtitles() {
 		path := filepath.Join(conf.FileDir, file.Path)
 		path, _ = filepath.Abs(path)
 		if err := os.RemoveAll(path); err != nil {
@@ -68,7 +68,8 @@ func (t *T) close() {
 		}
 	}
 	// remove files
-	for _, file := range t.Files() {
+	files := t.Files()
+	for _, file := range files {
 		path := filepath.Join(conf.FileDir, file.Path())
 		path, _ = filepath.Abs(path)
 		if err := os.RemoveAll(path); err != nil {
@@ -76,12 +77,14 @@ func (t *T) close() {
 		}
 	}
 	// remove torrent dir
-	dir, _ := filepath.Split(t.Files()[0].Path())
-	if dir != "" && dir != conf.FileDir {
-		path := filepath.Join(conf.FileDir, dir)
-		path, _ = filepath.Abs(path)
-		if err := os.RemoveAll(path); err != nil {
-			log.Printf("error delete directory %q: %v\n", dir, err)
+	if len(files) > 0 {
+		dir, _ := filepath.Split(files[0].Path())
+		if dir != "" && dir != conf.FileDir {
+			path := filepath.Join(conf.FileDir, dir)
+			path, _ = filepath.Abs(path)
+			if err := os.RemoveAll(path); err != nil {
+				log.Printf("error delete directory %q: %v\n", dir, err)
+			}
 		}
 	}
 
@@ -91,13 +94,26 @@ func (t *T) close() {
 // Largest ..
 func (t *T) LargestFile() *torrent.File {
 	files := t.Files()
+	if len(files) == 0 {
+		return nil
+	}
 	sort.Slice(files, func(i, j int) bool { return files[i].Length() > files[j].Length() })
 	return files[0]
 }
 
 // addSubtitles ..
 func (t *T) addSubtitles(lang []string) error {
-	t.Subs = append(t.Subs, t.findSubtitles()...)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	subs := t.findSubtitles(ctx)
+	if len(subs) == 0 {
+		return nil
+	}
+
+	t.Lock()
+	t.Subs = append(t.Subs, subs...)
+	t.Unlock()
 
 	// if len(t.Subs) == 0 {
 	// 	tr := t.LargestFile().NewReader()
@@ -113,8 +129,17 @@ func (t *T) addSubtitles(lang []string) error {
 	return nil
 }
 
+func (t *T) Subtitles() []Subtitle {
+	t.RLock()
+	defer t.RUnlock()
+
+	subs := make([]Subtitle, len(t.Subs))
+	copy(subs, t.Subs)
+	return subs
+}
+
 // FindSubInTorrent
-func (t *T) findSubtitles() []Subtitle {
+func (t *T) findSubtitles(ctx context.Context) []Subtitle {
 	var subs []Subtitle
 
 	for _, tf := range t.Torrent.Files() {
@@ -131,7 +156,11 @@ func (t *T) findSubtitles() []Subtitle {
 					break
 				}
 
-				time.Sleep(100 * time.Microsecond)
+				select {
+				case <-ctx.Done():
+					return subs
+				case <-time.After(250 * time.Millisecond):
+				}
 			}
 
 			if ext == ".srt" {
@@ -155,6 +184,19 @@ func (t *T) findSubtitles() []Subtitle {
 	return subs
 }
 
+func (t *T) Touch() {
+	t.Lock()
+	t.Activity = time.Now()
+	t.Unlock()
+}
+
+func (t *T) IdleFor(d time.Duration) bool {
+	t.RLock()
+	defer t.RUnlock()
+
+	return t.Conn == 0 && time.Since(t.Activity) >= d
+}
+
 // TrackConnectionActivity ..
 func (t *T) TrackConnectionActivity(r *http.Request) {
 	t.Lock()
@@ -167,7 +209,10 @@ func (t *T) TrackConnectionActivity(r *http.Request) {
 			select {
 			case <-r.Context().Done():
 				t.Lock()
-				t.Conn--
+				if t.Conn > 0 {
+					t.Conn--
+				}
+				t.Activity = time.Now()
 				t.Unlock()
 				return
 

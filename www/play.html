@@ -72,6 +72,7 @@ var player = videojs('video');
 
 var fallbackEl = document.getElementById('playback-fallback');
 var fallbackURLEl = document.getElementById('fallback-stream-url');
+var keepAliveURL = '{{.KeepAliveURL}}';
 document.getElementById('fallback-copy').addEventListener('click', function () {
     var url = (fallbackURLEl.textContent || '').trim();
     if (url && navigator.clipboard && navigator.clipboard.writeText) {
@@ -82,6 +83,21 @@ document.getElementById('fallback-copy').addEventListener('click', function () {
 function showPlaybackFallback() {
     fallbackEl.classList.add('visible');
 }
+
+function keepStreamAlive() {
+    if (!keepAliveURL) {
+        return;
+    }
+    fetch(keepAliveURL, {
+        method: 'POST',
+        cache: 'no-store',
+        keepalive: true
+    }).catch(function () {});
+}
+
+keepStreamAlive();
+setInterval(keepStreamAlive, 20000);
+document.addEventListener('visibilitychange', keepStreamAlive);
 
 // Video.js can emit `error` while playback still works (startup noise, reconnect,
 // end of chunked stream). Only show the overlay if nothing actually played.
@@ -98,6 +114,11 @@ function markPlaybackStarted() {
 }
 
 player.on('playing', markPlaybackStarted);
+player.on('play', keepStreamAlive);
+player.on('pause', keepStreamAlive);
+player.on('seeking', keepStreamAlive);
+player.on('seeked', keepStreamAlive);
+player.on('waiting', keepStreamAlive);
 player.on('timeupdate', function onFirstProgress() {
     if (player.currentTime() > 0.05) {
         markPlaybackStarted();
