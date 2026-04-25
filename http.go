@@ -211,7 +211,8 @@ func stream(w http.ResponseWriter, r *http.Request) {
 	largestFile := torrent.LargestFile()
 	reader := largestFile.NewReader()
 	reader.SetReadahead(32 * 1024 * 1024) // 32MB readahead for smooth streaming
-	reader.SetResponsive()                // Prioritize pieces needed for playback
+	// SetResponsive() triggers anacrolix/torrent internal checkPendingPiecesMatchesRequestOrder
+	// panics (piece request order vs _pendingPieces desync) on some releases — omit until upstream fix.
 	defer reader.Close()
 
 	// Set streaming headers
