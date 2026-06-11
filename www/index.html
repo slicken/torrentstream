@@ -248,6 +248,13 @@
         border: 1px solid var(--torrent-border);
     }
 
+    .search-status {
+        text-align: center;
+        padding: 20px;
+        color: #999999;
+        display: none;
+    }
+
     .msgbox {
         margin: 30px 0;
         display: flex;
@@ -275,12 +282,12 @@
 </style>
 
 <div class="nav">
-    <form class="search-bar" method="POST">
+    <form id="search-form" class="search-bar" method="POST">
         <img id="logo" src="/www/ts.svg" align="top">
-        <input type="text" name="search" placeholder="Search torrent..." autocomplete="off" required>
+        <input type="text" name="search" placeholder="Search torrent..." autocomplete="off" required value="{{.Search}}">
         <select name="category">
-            <option value="movie">Movie</option>
-            <option value="tv">TV</option>
+            <option value="movie" {{if eq .Category "movie"}}selected{{end}}>Movie</option>
+            <option value="tv" {{if eq .Category "tv"}}selected{{end}}>TV</option>
         </select>
         <button class="icon"><i class="fa fa-search"></i></button>
     </form>
@@ -311,11 +318,202 @@ document.addEventListener('DOMContentLoaded', () => {
     // Set initial icon
     const icon = document.querySelector('.theme-toggle i');
     icon.className = savedTheme === 'dark' ? 'fa fa-moon-o' : 'fa fa-sun-o';
+
+    setupStreamingSearch();
 });
+
+let activeSearch = null;
+
+function setupStreamingSearch() {
+    const form = document.getElementById('search-form');
+    if (!form || !window.EventSource) {
+        return;
+    }
+
+    form.addEventListener('submit', event => {
+        event.preventDefault();
+        startStreamingSearch(new FormData(form));
+    });
+}
+
+function startStreamingSearch(formData) {
+    if (activeSearch) {
+        activeSearch.close();
+    }
+
+    const query = formData.get('search').trim();
+    const category = formData.get('category') || 'movie';
+    if (!query) {
+        return;
+    }
+
+    const results = document.getElementById('results');
+    const status = document.getElementById('search-status');
+    const msgbox = document.getElementById('msgbox');
+    results.innerHTML = '';
+    if (msgbox) {
+        msgbox.style.display = 'none';
+    }
+    status.style.display = 'block';
+    status.textContent = `Searching for "${query}"...`;
+
+    const params = new URLSearchParams({search: query, category});
+    const source = new EventSource(`/search?${params.toString()}`);
+    activeSearch = source;
+    let count = 0;
+    let completed = false;
+
+    source.addEventListener('result', event => {
+        const torrent = JSON.parse(event.data);
+        insertTorrentSorted(results, renderTorrent(torrent), torrent.seeders);
+        count++;
+        status.textContent = `Found ${count} result${count === 1 ? '' : 's'} for "${query}"...`;
+    });
+
+    source.addEventListener('done', event => {
+        completed = true;
+        source.close();
+        activeSearch = null;
+        const data = JSON.parse(event.data);
+        const total = data.count || count;
+        status.textContent = total === 0
+            ? `No results were found for "${query}".`
+            : `Found ${total} result${total === 1 ? '' : 's'} for "${query}" (${category}).`;
+    });
+
+    source.onerror = () => {
+        source.close();
+        activeSearch = null;
+        if (!completed) {
+            status.textContent = `Search stopped before finishing. Showing ${count} result${count === 1 ? '' : 's'}.`;
+        }
+    };
+}
+
+function insertTorrentSorted(container, element, seeders) {
+    element.dataset.seeders = seeders;
+    const current = Array.from(container.querySelectorAll('.movie'));
+    const before = current.find(item => Number(item.dataset.seeders) < seeders);
+    if (before) {
+        container.insertBefore(element, before);
+        return;
+    }
+    container.appendChild(element);
+}
+
+function renderTorrent(torrent) {
+    const movie = document.createElement('div');
+    movie.className = 'movie';
+    const info = torrent.info || {};
+
+    const poster = document.createElement('div');
+    poster.className = 'poster';
+
+    const playLink = document.createElement('a');
+    playLink.href = `/play?${torrent.magnetURI}`;
+
+    const posterImg = document.createElement('img');
+    posterImg.src = info.poster || '/www/no-poster.png';
+    playLink.appendChild(posterImg);
+
+    const playImg = document.createElement('img');
+    playImg.className = 'play-button';
+    playImg.src = '/www/play.png';
+    playLink.appendChild(playImg);
+
+    poster.appendChild(playLink);
+
+    const content = document.createElement('div');
+    content.className = 'content';
+
+    const infoBlock = document.createElement('div');
+    infoBlock.className = 'info';
+    if (info.poster) {
+        const year = document.createElement('div');
+        year.className = 'info-year';
+        year.textContent = `(${info.year || ''})`;
+        infoBlock.appendChild(year);
+
+        const title = document.createElement('div');
+        title.className = 'info-title';
+        title.textContent = info.title || torrent.title || '';
+        infoBlock.appendChild(title);
+
+        const genre = document.createElement('div');
+        genre.className = 'info-genre';
+        genre.textContent = `${info.runtime || ''} | ${info.genre || ''}`;
+        infoBlock.appendChild(genre);
+
+        const rating = document.createElement('div');
+        rating.className = 'info-rating';
+        const star = document.createElement('span');
+        star.className = 'imdbscore';
+        const icon = document.createElement('i');
+        icon.className = 'fa fa-star';
+        star.appendChild(icon);
+        rating.appendChild(star);
+        rating.appendChild(document.createTextNode(` ${info.imdbRating || ''}`));
+        const meta = document.createElement('span');
+        meta.className = 'metascore';
+        meta.textContent = info.metascore || '';
+        rating.appendChild(meta);
+        rating.appendChild(document.createTextNode(' Metascore'));
+        infoBlock.appendChild(rating);
+
+        const plot = document.createElement('div');
+        plot.textContent = info.plot || '';
+        infoBlock.appendChild(plot);
+
+        const actors = document.createElement('div');
+        actors.className = 'info-actors';
+        actors.appendChild(document.createTextNode(`Director: ${info.director || ''}`));
+        actors.appendChild(document.createElement('br'));
+        actors.appendChild(document.createTextNode(`Actors: ${info.actors || ''}`));
+        infoBlock.appendChild(actors);
+    }
+    content.appendChild(infoBlock);
+
+    const details = document.createElement('div');
+    details.className = 'torrent';
+    details.appendChild(line(torrent.title, true));
+
+    const siteLine = document.createElement('p');
+    siteLine.appendChild(document.createTextNode(torrent.siteID || 'Unknown site'));
+    const size = document.createElement('span');
+    size.style.float = 'right';
+    size.textContent = torrent.size || '';
+    siteLine.appendChild(size);
+    details.appendChild(siteLine);
+
+    const swarmLine = document.createElement('p');
+    swarmLine.appendChild(document.createTextNode(`Seeders: ${torrent.seeders}`));
+    const leechers = document.createElement('span');
+    leechers.style.float = 'right';
+    leechers.textContent = `Leechers: ${torrent.leechers}`;
+    swarmLine.appendChild(leechers);
+    details.appendChild(swarmLine);
+
+    content.appendChild(details);
+    movie.appendChild(poster);
+    movie.appendChild(content);
+    return movie;
+}
+
+function line(text, bold) {
+    const p = document.createElement('p');
+    if (!bold) {
+        p.textContent = text || '';
+        return p;
+    }
+    const b = document.createElement('b');
+    b.textContent = text || '';
+    p.appendChild(b);
+    return p;
+}
 </script>
 
 {{if .Msg}}
-<div class="msgbox">
+<div id="msgbox" class="msgbox">
     {{if (eq .Msg 1)}}
     <div style="margin: 100px 0px">
         welcome to torrentstream.io<br><br>
@@ -335,6 +533,8 @@ document.addEventListener('DOMContentLoaded', () => {
 </div>
 {{end}}
 
+<div id="search-status" class="search-status"></div>
+<div id="results">
 {{if .T}}
 {{range .T}}
 <div class="movie">
@@ -369,3 +569,4 @@ document.addEventListener('DOMContentLoaded', () => {
 </div>
 {{end}}
 {{end}}
+</div>

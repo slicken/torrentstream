@@ -1,10 +1,13 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
 	"html/template"
 	"log"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 
 	"github.com/anacrolix/torrent/metainfo"
@@ -46,6 +49,30 @@ var (
 type History struct {
 	Time time.Time
 	File string
+}
+
+type searchResultEvent struct {
+	MagnetURI string           `json:"magnetURI"`
+	ID        string           `json:"id"`
+	Title     string           `json:"title"`
+	Size      string           `json:"size"`
+	SiteID    string           `json:"siteID"`
+	Seeders   int              `json:"seeders"`
+	Leechers  int              `json:"leechers"`
+	Info      *searchInfoEvent `json:"info,omitempty"`
+}
+
+type searchInfoEvent struct {
+	Title      string `json:"title"`
+	Year       string `json:"year"`
+	Runtime    string `json:"runtime"`
+	Genre      string `json:"genre"`
+	Poster     string `json:"poster"`
+	Metascore  string `json:"metascore"`
+	ImdbRating string `json:"imdbRating"`
+	Plot       string `json:"plot"`
+	Director   string `json:"director"`
+	Actors     string `json:"actors"`
 }
 
 func stats(w http.ResponseWriter, r *http.Request) {
@@ -97,6 +124,86 @@ func index(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tmplIndex.Execute(w, data)
+}
+
+func searchStream(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if search == nil {
+		http.Error(w, "search is not initialized", http.StatusServiceUnavailable)
+		return
+	}
+
+	query := r.URL.Query().Get("search")
+	category := r.URL.Query().Get("category")
+	if query == "" {
+		http.Error(w, "missing search query", http.StatusBadRequest)
+		return
+	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	mapOmdb := make(map[string]*Omdb)
+	var omdbMutex sync.Mutex
+	count := 0
+	for torrent := range search.StreamTorrent(query, category) {
+		select {
+		case <-r.Context().Done():
+			return
+		default:
+		}
+
+		enrichTorrentInfo(torrent, mapOmdb, &omdbMutex)
+		payload, err := json.Marshal(searchResultEvent{
+			MagnetURI: torrent.MagnetURI,
+			ID:        torrent.ID,
+			Title:     torrent.Title,
+			Size:      torrent.Size,
+			SiteID:    torrent.SiteID,
+			Seeders:   torrent.Seeders,
+			Leechers:  torrent.Leechers,
+			Info:      newSearchInfoEvent(torrent.Info),
+		})
+		if err != nil {
+			log.Println("search stream encode:", err)
+			continue
+		}
+
+		fmt.Fprintf(w, "event: result\ndata: %s\n\n", payload)
+		flusher.Flush()
+		count++
+	}
+
+	fmt.Fprintf(w, "event: done\ndata: {\"count\":%d}\n\n", count)
+	flusher.Flush()
+}
+
+func newSearchInfoEvent(info *Omdb) *searchInfoEvent {
+	if info == nil {
+		return nil
+	}
+	return &searchInfoEvent{
+		Title:      info.Title,
+		Year:       info.Year,
+		Runtime:    info.Runtime,
+		Genre:      info.Genre,
+		Poster:     info.Poster,
+		Metascore:  info.Metascore,
+		ImdbRating: info.ImdbRating,
+		Plot:       info.Plot,
+		Director:   info.Director,
+		Actors:     info.Actors,
+	}
 }
 
 // requestBaseURL returns the client-facing origin (scheme + host) for building absolute links.

@@ -143,6 +143,7 @@ func main() {
 	http.Handle("/www/", http.StripPrefix("/www/", http.FileServer(http.Dir("www"))))
 	http.Handle("/tmp/", http.StripPrefix("/tmp/", http.FileServer(http.Dir(conf.FileDir))))
 	http.HandleFunc("/", index)
+	http.HandleFunc("/search", searchStream)
 	http.HandleFunc("/play", play)
 	http.HandleFunc("/touch", touch)
 	http.HandleFunc("/stream", stream)

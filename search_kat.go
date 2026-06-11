@@ -2,11 +2,9 @@ package main
 
 import (
 	"fmt"
-	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/PuerkitoBio/goquery"
 )
@@ -14,14 +12,51 @@ import (
 var kat = &TorrentSite{
 	Name:      "Kickass torrents",
 	Scheme:    "https",
-	URL:       "kickasstorrents.to",
+	URL:       "kickass2.fun",
 	UserAgent: "",
 }
 
 func katSearch(title, category string, ch chan *Torrent) error {
 	defer close(ch)
 
-	// check category
+	var lastErr error
+	for _, host := range torrentSiteHosts(kat.URL, []string{"kickass2.fun", "kat.am", "kickasstorrents.to", "katcr.to"}) {
+		results, err := scrapeKATHost(host, title, category, ch)
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		if results > 0 {
+			return nil
+		}
+	}
+	return lastErr
+}
+
+func scrapeKATHost(host, title, category string, ch chan *Torrent) (int, error) {
+	total := 0
+
+	for page := 1; page <= maxSearchPages; page++ {
+		searchURL := buildKATSearchURL(host, title, category, page)
+		doc, err := fetchHTML(searchURL)
+		if err != nil {
+			if total > 0 {
+				break
+			}
+			return total, err
+		}
+
+		pageResults := parseKATResults(doc, ch)
+		total += pageResults
+		if pageResults == 0 || !hasNextPage(doc) {
+			break
+		}
+	}
+
+	return total, nil
+}
+
+func buildKATSearchURL(host, title, category string, page int) string {
 	switch category {
 	case "tv":
 		category = "tv"
@@ -29,87 +64,89 @@ func katSearch(title, category string, ch chan *Torrent) error {
 		category = "movies"
 	}
 
-	// create url
-	url := url.URL{
-		Scheme: kat.Scheme,
-		Host:   kat.URL,
-		Path:   fmt.Sprintf("/usearch/%s category:%s/", title, category),
+	search := fmt.Sprintf("%s category:%s", title, category)
+	path := fmt.Sprintf("/usearch/%s/", url.PathEscape(search))
+	if page > 1 {
+		path = fmt.Sprintf("/usearch/%s/%d/", url.PathEscape(search), page)
 	}
 
-	// create request
-	req, err := http.NewRequest("GET", url.String(), nil)
-	if err != nil {
-		return err
-	}
+	return fmt.Sprintf("%s://%s%s", kat.Scheme, host, path)
+}
 
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
+func parseKATResults(doc *goquery.Document, ch chan *Torrent) int {
+	count := 0
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("%d %s", resp.StatusCode, http.StatusText(resp.StatusCode))
-	}
-
-	// parse
-	doc, err := goquery.NewDocumentFromReader(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	// Define a list of codec indicators to filter out
-	unsupportedCodecs := []string{"HEVC", "H.265", "x265", "VP9"}
-
-	var wg sync.WaitGroup
-	doc.Find("tr#torrent_latest_torrents").Each(func(i int, s *goquery.Selection) {
-		if i == 0 {
+	doc.Find("tr").Each(func(i int, s *goquery.Selection) {
+		torrent := parseKATRow(s)
+		if torrent == nil {
 			return
 		}
-
-		// concurrent parse
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
-			link, ok := s.Find("a").Eq(1).Attr("href")
-			if !ok {
-				return
-			}
-			magnet, err := parseURI(link)
-			if err != nil {
-				return
-			}
-			hash, err := parseID(link)
-			if err != nil {
-				return
-			}
-
-			// Extract title
-			title := s.Find("div.torrentname a").Text()
-
-			// Check if the torrent title contains any of the unsupported codec indicators
-			torrentTitleUpper := strings.ToUpper(title)
-			for _, codec := range unsupportedCodecs {
-				if strings.Contains(torrentTitleUpper, strings.ToUpper(codec)) {
-					return
-				}
-			}
-
-			// make torrent
-			var torrent = new(Torrent)
-			torrent.MagnetURI = magnet
-			torrent.ID = hash
-			torrent.Title = title
-			torrent.Seeders, _ = strconv.Atoi(s.Find("td").Eq(3).Text())
-			torrent.Leechers, _ = strconv.Atoi(s.Find("td").Eq(1).Text())
-			torrent.Size = s.Find("td").Eq(1).Text()
-			torrent.SiteID = kat.Name
-			// send torrent to channel
-			ch <- torrent
-		}()
+		ch <- torrent
+		count++
 	})
 
-	wg.Wait()
-	return nil
+	return count
+}
+
+func parseKATRow(s *goquery.Selection) *Torrent {
+	magnet := extractKATMagnet(s)
+	if magnet == "" {
+		return nil
+	}
+
+	hash, err := parseID(magnet)
+	if err != nil {
+		return nil
+	}
+
+	title := strings.TrimSpace(s.Find("a.cellMainLink").First().Text())
+	if title == "" {
+		title = strings.TrimSpace(s.Find("div.torrentname a").Last().Text())
+	}
+	if title == "" || hasUnsupportedCodec(title) {
+		return nil
+	}
+
+	seeders := parseKATNumber(s, "td.green, td.seeders, td:nth-child(4)")
+	if conf != nil && seeders < conf.Seeders {
+		return nil
+	}
+
+	return &Torrent{
+		MagnetURI: magnet,
+		ID:        hash,
+		Title:     title,
+		Seeders:   seeders,
+		Leechers:  parseKATNumber(s, "td.red, td.leechers, td:nth-child(5)"),
+		Size:      parseKATSize(s),
+		SiteID:    kat.Name,
+	}
+}
+
+func parseKATNumber(s *goquery.Selection, selector string) int {
+	value, _ := strconv.Atoi(strings.TrimSpace(s.Find(selector).First().Text()))
+	return value
+}
+
+func parseKATSize(s *goquery.Selection) string {
+	size := cleanCellText(s.Find("td.nobr, td.size").First())
+	if size != "" {
+		return size
+	}
+
+	return cleanCellText(s.Find("td").Eq(1))
+}
+
+func extractKATMagnet(s *goquery.Selection) string {
+	var magnet string
+	s.Find("a[href]").EachWithBreak(func(_ int, link *goquery.Selection) bool {
+		href, _ := link.Attr("href")
+		parsed, err := parseURI(href)
+		if err == nil {
+			magnet = parsed
+			return false
+		}
+		return true
+	})
+	return magnet
 }

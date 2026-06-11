@@ -2,21 +2,20 @@ package main
 
 import (
 	"fmt"
-	"net/http"
 	"net/url"
-	"regexp"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/PuerkitoBio/goquery"
 )
+
+const maxSearchPages = 10
 
 var (
 	leetx = &TorrentSite{
 		Name:      "1337x",
 		Scheme:    "https",
-		URL:       "x1337x.ws",
+		URL:       "www.1337xx.to",
 		UserAgent: "",
 	}
 )
@@ -24,114 +23,117 @@ var (
 func leetxSearch(title, category string, ch chan *Torrent) error {
 	defer close(ch)
 
-	// Build search URL
-	searchURL := fmt.Sprintf("%s://%s/search/%s/1/", leetx.Scheme, leetx.URL, url.QueryEscape(title))
-	if category == "tv" {
-		searchURL += "TV/"
+	var lastErr error
+	for _, host := range torrentSiteHosts(leetx.URL, []string{"www.1337xx.to", "1337xx.to", "1337x.to", "1337x.st", "x1337x.ws"}) {
+		results, err := scrape1337Host(host, title, category, ch)
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		if results > 0 {
+			return nil
+		}
 	}
-
-	// Create request
-	req, err := http.NewRequest("GET", searchURL, nil)
-	if err != nil {
-		return err
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("%d %s", resp.StatusCode, http.StatusText(resp.StatusCode))
-	}
-
-	// Parse response
-	doc, err := goquery.NewDocumentFromReader(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	// Define a list of codec indicators to filter out
-	unsupportedCodecs := []string{"HEVC", "H.265", "x265", "VP9"}
-
-	var wg sync.WaitGroup
-	doc.Find("table.table-list tbody tr").Each(func(i int, s *goquery.Selection) {
-		wg.Add(1)
-		go func(s *goquery.Selection) {
-			defer wg.Done()
-
-			// Extract torrent details
-			title := strings.TrimSpace(s.Find("td.name a:nth-child(2)").Text())
-			if title == "" {
-				return
-			}
-
-			// Check if the torrent title contains any of the unsupported codec indicators
-			torrentTitleUpper := strings.ToUpper(title)
-			for _, codec := range unsupportedCodecs {
-				if strings.Contains(torrentTitleUpper, strings.ToUpper(codec)) {
-					return
-				}
-			}
-
-			// Extract size
-			size := strings.TrimSpace(s.Find("td.size").Text())
-
-			// Extract seeders and leechers
-			seeders, _ := strconv.Atoi(strings.TrimSpace(s.Find("td.seeds").Text()))
-			leechers, _ := strconv.Atoi(strings.TrimSpace(s.Find("td.leeches").Text()))
-
-			// Check minimum seeders
-			if seeders < conf.Seeders {
-				return
-			}
-
-			// Get magnet link
-			magnetLink, _ := s.Find("td.name a:nth-child(1)").Attr("href")
-			if magnetLink == "" {
-				return
-			}
-
-			// Add trackers if enabled
-			if conf.Trackers {
-				for _, tracker := range trackers {
-					magnetLink += "&tr=" + tracker
-				}
-			}
-
-			// Create torrent object
-			torrent := &Torrent{
-				MagnetURI: magnetLink,
-				ID:        extractHash(magnetLink),
-				Title:     title,
-				Size:      size,
-				SiteID:    leetx.Name,
-				Seeders:   seeders,
-				Leechers:  leechers,
-			}
-
-			// Get OMDB data
-			title, year := parseTitle(torrent.Title)
-			omdb, _ := getOMDB(title, year)
-			if !strings.Contains(omdb.Poster, "http") {
-				omdb.Poster = ""
-			}
-			torrent.Info = omdb
-
-			ch <- torrent
-		}(s)
-	})
-
-	wg.Wait()
-	return nil
+	return lastErr
 }
 
-// extractHash extracts the info hash from a magnet link
-func extractHash(magnet string) string {
-	re := regexp.MustCompile(`btih:([a-zA-Z0-9]{40})`)
-	matches := re.FindStringSubmatch(magnet)
-	if len(matches) > 1 {
-		return matches[1]
+func scrape1337Host(host, title, category string, ch chan *Torrent) (int, error) {
+	total := 0
+	var lastErr error
+
+	for page := 1; page <= maxSearchPages; page++ {
+		searchURL := build1337SearchURL(host, title, category, page)
+		doc, err := fetchHTML(searchURL)
+		if err != nil {
+			if total > 0 {
+				break
+			}
+			return total, err
+		}
+
+		pageResults := parse1337Results(host, doc, ch)
+		total += pageResults
+		if pageResults == 0 || !hasNextPage(doc) {
+			break
+		}
+		lastErr = nil
 	}
-	return ""
+
+	return total, lastErr
+}
+
+func build1337SearchURL(host, title, category string, page int) string {
+	escapedTitle := url.PathEscape(title)
+	path := fmt.Sprintf("/category-search/%s/Movies/%d/", escapedTitle, page)
+	if category == "tv" {
+		path = fmt.Sprintf("/category-search/%s/TV/%d/", escapedTitle, page)
+	}
+
+	return fmt.Sprintf("%s://%s%s", leetx.Scheme, host, path)
+}
+
+func parse1337Results(host string, doc *goquery.Document, ch chan *Torrent) int {
+	count := 0
+
+	doc.Find("table.table-list tbody tr").Each(func(i int, s *goquery.Selection) {
+		result := parse1337Row(host, s)
+		if result == nil {
+			return
+		}
+		ch <- result
+		count++
+	})
+
+	return count
+}
+
+func parse1337Row(host string, s *goquery.Selection) *Torrent {
+	titleLink := s.Find("td.name a").Last()
+	title := strings.TrimSpace(titleLink.Text())
+	if title == "" || hasUnsupportedCodec(title) {
+		return nil
+	}
+
+	seeders, _ := strconv.Atoi(strings.TrimSpace(s.Find("td.seeds, td.coll-2").First().Text()))
+	if conf != nil && seeders < conf.Seeders {
+		return nil
+	}
+
+	detailPath, ok := titleLink.Attr("href")
+	if !ok || detailPath == "" {
+		return nil
+	}
+
+	magnetLink, err := fetch1337Magnet(host, detailPath)
+	if err != nil || magnetLink == "" {
+		return nil
+	}
+	if conf != nil && conf.Trackers {
+		magnetLink = addTrackers(magnetLink)
+	}
+	hash, _ := parseID(magnetLink)
+
+	return &Torrent{
+		MagnetURI: magnetLink,
+		ID:        hash,
+		Title:     title,
+		Size:      cleanCellText(s.Find("td.size, td.coll-4").First()),
+		SiteID:    leetx.Name,
+		Seeders:   seeders,
+		Leechers:  parseIntCell(s.Find("td.leeches, td.coll-3").First()),
+	}
+}
+
+func fetch1337Magnet(host, detailPath string) (string, error) {
+	detailURL := absoluteSiteURL(leetx.Scheme, host, detailPath)
+	doc, err := fetchHTML(detailURL)
+	if err != nil {
+		return "", err
+	}
+
+	magnet, ok := doc.Find(`a[href^="magnet:"]`).First().Attr("href")
+	if !ok {
+		return "", fmt.Errorf("magnet not found")
+	}
+	return magnet, nil
 }

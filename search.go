@@ -151,76 +151,12 @@ func (ts *TorrentSites) Handler(minutes int) {
 
 // SearchTorrent makes concurrent search on all enabled sites..
 func (ts *TorrentSites) SearchTorrent(title, category string) []*Torrent {
-	var wg sync.WaitGroup
 	var mapOmdb = make(map[string]*Omdb, 0)
-	var ch = make(chan *Torrent)
+	var omdbMutex sync.Mutex
 
-	for _, site := range ts.Enabled() {
-		wg.Add(1)
-		go func(site TorrentSite) {
-			defer wg.Done()
-
-			var c = make(chan *Torrent)
-			go func() {
-				err := site.ScrapeFunc(title, category, c)
-				if err != nil {
-					log.Printf("search error '%s' on %s: %v\n", title, site.Name, err)
-				}
-			}()
-
-			// get omdb content
-			var vg sync.WaitGroup
-			for torrent := range c {
-				vg.Add(1)
-				go func(torrent *Torrent, mapOmdb map[string]*Omdb) {
-					defer vg.Done()
-
-					// check is this torrent nr of seeders passes minimum seeders in config
-					if torrent.Seeders < conf.Seeders {
-						return
-					}
-					if conf != nil && !conf.FFmpeg && !chromeBrowserLikelyPlayable(torrent.Title) {
-						return
-					}
-					title, year := parseTitle(torrent.Title)
-
-					// check if poster alredy exist from previous dl
-					ts.RLock()
-					list := mapOmdb
-					ts.RUnlock()
-
-					for name, omdb := range list {
-						if name == title {
-							torrent.Info = omdb
-							ch <- torrent
-							return
-						}
-					}
-					// if info didnt exist, download it
-					omdb, _ := getOMDB(title, year)
-					// if no link to poster. clear its field to endable the 'no poster' imgage
-					if !strings.Contains(omdb.Poster, "http") {
-						omdb.Poster = ""
-					}
-					torrent.Info = omdb
-					ch <- torrent
-					ts.Lock()
-					mapOmdb[title] = omdb
-					ts.Unlock()
-				}(torrent, mapOmdb)
-			}
-			vg.Wait()
-		}(*site)
-	}
-
-	go func() {
-		wg.Wait()
-		close(ch)
-	}()
-
-	// add to slice
 	var torrents = make([]*Torrent, 0)
-	for torrent := range ch {
+	for torrent := range ts.StreamTorrent(title, category) {
+		enrichTorrentInfo(torrent, mapOmdb, &omdbMutex)
 		torrents = append(torrents, torrent)
 	}
 
@@ -230,6 +166,80 @@ func (ts *TorrentSites) SearchTorrent(title, category string) []*Torrent {
 	})
 
 	return torrents
+}
+
+// StreamTorrent streams filtered torrent results as soon as each scraper finds them.
+func (ts *TorrentSites) StreamTorrent(title, category string) <-chan *Torrent {
+	var wg sync.WaitGroup
+	ch := make(chan *Torrent)
+
+	for _, site := range ts.Enabled() {
+		wg.Add(1)
+		go func(site TorrentSite) {
+			defer wg.Done()
+
+			c := make(chan *Torrent)
+			go func() {
+				err := site.ScrapeFunc(title, category, c)
+				if err != nil {
+					log.Printf("search error '%s' on %s: %v\n", title, site.Name, err)
+				}
+			}()
+
+			for torrent := range c {
+				if shouldSkipTorrent(torrent) {
+					continue
+				}
+				ch <- torrent
+			}
+		}(*site)
+	}
+
+	go func() {
+		wg.Wait()
+		close(ch)
+	}()
+
+	return ch
+}
+
+func shouldSkipTorrent(torrent *Torrent) bool {
+	if conf != nil && torrent.Seeders < conf.Seeders {
+		return true
+	}
+	if conf != nil && !conf.FFmpeg && !chromeBrowserLikelyPlayable(torrent.Title) {
+		return true
+	}
+	return false
+}
+
+func enrichTorrentInfo(torrent *Torrent, mapOmdb map[string]*Omdb, omdbMutex *sync.Mutex) {
+	if torrent.Info != nil {
+		if !strings.Contains(torrent.Info.Poster, "http") {
+			torrent.Info.Poster = ""
+		}
+		return
+	}
+
+	title, year := parseTitle(torrent.Title)
+
+	omdbMutex.Lock()
+	omdb, ok := mapOmdb[title]
+	omdbMutex.Unlock()
+	if ok {
+		torrent.Info = omdb
+		return
+	}
+
+	omdb, _ = getOMDB(title, year)
+	if !strings.Contains(omdb.Poster, "http") {
+		omdb.Poster = ""
+	}
+	torrent.Info = omdb
+
+	omdbMutex.Lock()
+	mapOmdb[title] = omdb
+	omdbMutex.Unlock()
 }
 
 // InitializeMovieList performs an initial search across all sites and caches the results

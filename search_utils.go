@@ -11,8 +11,11 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/PuerkitoBio/goquery"
 )
 
 const mb = 16 << 16
@@ -216,4 +219,77 @@ func addTrackers(magnet string) string {
 	}
 
 	return magnet
+}
+
+func fetchHTML(rawURL string) (*goquery.Document, error) {
+	req, err := http.NewRequest(http.MethodGet, rawURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("%d %s", resp.StatusCode, http.StatusText(resp.StatusCode))
+	}
+
+	return goquery.NewDocumentFromReader(resp.Body)
+}
+
+func torrentSiteHosts(primary string, fallbacks []string) []string {
+	seen := make(map[string]bool, len(fallbacks)+1)
+	hosts := make([]string, 0, len(fallbacks)+1)
+
+	for _, host := range append([]string{primary}, fallbacks...) {
+		host = strings.TrimSpace(host)
+		if host == "" || seen[host] {
+			continue
+		}
+		seen[host] = true
+		hosts = append(hosts, host)
+	}
+
+	return hosts
+}
+
+func absoluteSiteURL(scheme, host, path string) string {
+	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
+		return path
+	}
+
+	u := url.URL{
+		Scheme: scheme,
+		Host:   host,
+		Path:   path,
+	}
+	return u.String()
+}
+
+func hasNextPage(doc *goquery.Document) bool {
+	if doc.Find("li.next:not(.disabled) a[href]").Length() > 0 {
+		return true
+	}
+
+	return doc.Find("a[href]").FilterFunction(func(_ int, s *goquery.Selection) bool {
+		return strings.Contains(strings.ToLower(s.Text()), "next")
+	}).Length() > 0
+}
+
+func cleanCellText(s *goquery.Selection) string {
+	clone := s.Clone()
+	clone.Find("span").Remove()
+	return strings.TrimSpace(clone.Text())
+}
+
+func parseIntCell(s *goquery.Selection) int {
+	value, _ := strconv.Atoi(strings.TrimSpace(s.Text()))
+	return value
+}
+
+func hasUnsupportedCodec(title string) bool {
+	return reChromeBadCodec.MatchString(title)
 }
