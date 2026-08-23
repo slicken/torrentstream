@@ -59,6 +59,7 @@ type searchResultEvent struct {
 	SiteID    string           `json:"siteID"`
 	Seeders   int              `json:"seeders"`
 	Leechers  int              `json:"leechers"`
+	Relevance int              `json:"relevance"`
 	Info      *searchInfoEvent `json:"info,omitempty"`
 }
 
@@ -172,6 +173,7 @@ func searchStream(w http.ResponseWriter, r *http.Request) {
 			SiteID:    torrent.SiteID,
 			Seeders:   torrent.Seeders,
 			Leechers:  torrent.Leechers,
+			Relevance: torrentRelevance(query, torrent),
 			Info:      newSearchInfoEvent(torrent.Info),
 		})
 		if err != nil {

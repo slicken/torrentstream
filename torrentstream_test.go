@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -197,6 +198,42 @@ func TestSearchURLBuildersDoNotDoubleEscapeTerms(t *testing.T) {
 	wantKAT := "https://kat.example/usearch/open%20movie%20category:movies/2/"
 	if gotKAT != wantKAT {
 		t.Fatalf("buildKATSearchURL() = %q, want %q", gotKAT, wantKAT)
+	}
+}
+
+func TestSearchWordMatchScore(t *testing.T) {
+	query := "miniature wife"
+
+	if got := searchWordMatchScore(query, "The Miniature Wife S01E01"); got != 2 {
+		t.Fatalf("full match score = %d, want 2", got)
+	}
+	if got := searchWordMatchScore(query, "Some Movie Wife 2020"); got != 1 {
+		t.Fatalf("partial match score = %d, want 1", got)
+	}
+	if got := searchWordMatchScore(query, "Unrelated Title"); got != 0 {
+		t.Fatalf("no match score = %d, want 0", got)
+	}
+}
+
+func TestSearchTorrentSortsByRelevanceThenSeeders(t *testing.T) {
+	torrents := []*Torrent{
+		{Title: "Random Wife Story 1080p", Seeders: 200},
+		{Title: "The Miniature Wife S01", Seeders: 20},
+		{Title: "Miniature Wife Complete", Seeders: 50},
+	}
+
+	sort.SliceStable(torrents, func(i, j int) bool {
+		return compareTorrentRelevance("miniature wife", torrents[i], torrents[j])
+	})
+
+	if torrents[0].Title != "Miniature Wife Complete" {
+		t.Fatalf("first = %q, want best-relevance highest seeders", torrents[0].Title)
+	}
+	if torrents[1].Title != "The Miniature Wife S01" {
+		t.Fatalf("second = %q, want second best-relevance", torrents[1].Title)
+	}
+	if torrents[2].Title != "Random Wife Story 1080p" {
+		t.Fatalf("third = %q, want partial match last", torrents[2].Title)
 	}
 }
 

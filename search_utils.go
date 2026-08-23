@@ -293,3 +293,43 @@ func parseIntCell(s *goquery.Selection) int {
 func hasUnsupportedCodec(title string) bool {
 	return reChromeBadCodec.MatchString(title)
 }
+
+// searchWordMatchScore counts how many query words appear in text (case-insensitive).
+func searchWordMatchScore(query, text string) int {
+	query = strings.TrimSpace(strings.ToLower(query))
+	text = strings.ToLower(reFix.ReplaceAllString(text, " "))
+	if query == "" || text == "" {
+		return 0
+	}
+
+	matched := 0
+	for _, word := range strings.Fields(query) {
+		if strings.Contains(text, word) {
+			matched++
+		}
+	}
+	return matched
+}
+
+func torrentRelevance(query string, torrent *Torrent) int {
+	if torrent == nil {
+		return 0
+	}
+
+	score := searchWordMatchScore(query, torrent.Title)
+	if torrent.Info != nil && torrent.Info.Title != "" {
+		if s := searchWordMatchScore(query, torrent.Info.Title); s > score {
+			score = s
+		}
+	}
+	return score
+}
+
+func compareTorrentRelevance(query string, a, b *Torrent) bool {
+	ra := torrentRelevance(query, a)
+	rb := torrentRelevance(query, b)
+	if ra != rb {
+		return ra > rb
+	}
+	return a.Seeders > b.Seeders
+}

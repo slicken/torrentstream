@@ -160,9 +160,8 @@ func (ts *TorrentSites) SearchTorrent(title, category string) []*Torrent {
 		torrents = append(torrents, torrent)
 	}
 
-	// sort by seeders
 	sort.SliceStable(torrents, func(i, j int) bool {
-		return torrents[i].Seeders > torrents[j].Seeders
+		return compareTorrentRelevance(title, torrents[i], torrents[j])
 	})
 
 	return torrents

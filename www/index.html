@@ -365,7 +365,7 @@ function startStreamingSearch(formData) {
 
     source.addEventListener('result', event => {
         const torrent = JSON.parse(event.data);
-        insertTorrentSorted(results, renderTorrent(torrent), torrent.seeders);
+        insertTorrentSorted(results, renderTorrent(torrent), torrent.seeders, torrent.relevance || 0);
         count++;
         status.textContent = `Found ${count} result${count === 1 ? '' : 's'} for "${query}"...`;
     });
@@ -390,10 +390,18 @@ function startStreamingSearch(formData) {
     };
 }
 
-function insertTorrentSorted(container, element, seeders) {
+function insertTorrentSorted(container, element, seeders, relevance) {
     element.dataset.seeders = seeders;
+    element.dataset.relevance = relevance;
     const current = Array.from(container.querySelectorAll('.movie'));
-    const before = current.find(item => Number(item.dataset.seeders) < seeders);
+    const before = current.find(item => {
+        const itemRel = Number(item.dataset.relevance || 0);
+        const itemSeed = Number(item.dataset.seeders || 0);
+        if (itemRel !== relevance) {
+            return itemRel < relevance;
+        }
+        return itemSeed < seeders;
+    });
     if (before) {
         container.insertBefore(element, before);
         return;
