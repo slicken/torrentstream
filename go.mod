@@ -4,29 +4,29 @@ go 1.26.2
 
 require (
 	github.com/PuerkitoBio/goquery v1.12.0
-	github.com/anacrolix/torrent v1.61.0
+	github.com/anacrolix/torrent v1.61.1-0.20260911233437-76452a2c8a2f
 	golang.org/x/time v0.15.0
 )
 
 require (
-	github.com/RoaringBitmap/roaring v1.9.4 // indirect
+	github.com/RoaringBitmap/roaring/v2 v2.16.0 // indirect
 	github.com/alecthomas/atomic v0.1.0-alpha2 // indirect
 	github.com/anacrolix/btree v0.1.1 // indirect
-	github.com/anacrolix/chansync v0.7.0 // indirect
-	github.com/anacrolix/dht/v2 v2.23.0 // indirect
+	github.com/anacrolix/chansync v0.8.0 // indirect
+	github.com/anacrolix/dht/v2 v2.23.1-0.20260525063928-ec3a9bd99456 // indirect
 	github.com/anacrolix/envpprof v1.5.0 // indirect
 	github.com/anacrolix/generics v0.2.0 // indirect
-	github.com/anacrolix/go-libutp v1.4.0 // indirect
+	github.com/anacrolix/go-libutp v1.5.2-0.20260908013213-836dd42cdde6 // indirect
+	github.com/anacrolix/go-utp v0.0.0-20260908033909-9f1664acf866 // indirect
 	github.com/anacrolix/log v0.17.1-0.20251118025802-918f1157b7bb // indirect
 	github.com/anacrolix/missinggo v1.3.0 // indirect
 	github.com/anacrolix/missinggo/perf v1.0.0 // indirect
-	github.com/anacrolix/missinggo/v2 v2.10.0 // indirect
+	github.com/anacrolix/missinggo/v2 v2.11.0 // indirect
 	github.com/anacrolix/mmsg v1.1.1 // indirect
 	github.com/anacrolix/multiless v0.4.0 // indirect
 	github.com/anacrolix/stm v0.5.0 // indirect
 	github.com/anacrolix/sync v0.6.0 // indirect
 	github.com/anacrolix/upnp v0.1.4 // indirect
-	github.com/anacrolix/utp v0.2.0 // indirect
 	github.com/andybalholm/cascadia v1.3.3 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/benbjohnson/immutable v0.4.3 // indirect
